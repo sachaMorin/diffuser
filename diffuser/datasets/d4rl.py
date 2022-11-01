@@ -3,12 +3,14 @@ import collections
 import numpy as np
 import gym
 import pdb
+from .s1 import S1
 
 from contextlib import (
     contextmanager,
     redirect_stderr,
     redirect_stdout,
 )
+
 
 @contextmanager
 def suppress_output():
@@ -20,24 +22,30 @@ def suppress_output():
         with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
             yield (err, out)
 
+
 with suppress_output():
     ## d4rl prints out a variety of warnings
     import d4rl
 
-#-----------------------------------------------------------------------------#
-#-------------------------------- general api --------------------------------#
-#-----------------------------------------------------------------------------#
+
+# -----------------------------------------------------------------------------#
+# -------------------------------- general api --------------------------------#
+# -----------------------------------------------------------------------------#
 
 def load_environment(name):
-    if type(name) != str:
-        ## name is already an environment
-        return name
-    with suppress_output():
-        wrapped_env = gym.make(name)
-    env = wrapped_env.unwrapped
-    env.max_episode_steps = wrapped_env._max_episode_steps
-    env.name = name
+    if name == 's1':
+        env = S1()
+    else:
+        if type(name) != str:
+            ## name is already an environment
+            return name
+        with suppress_output():
+            wrapped_env = gym.make(name)
+        env = wrapped_env.unwrapped
+        env.max_episode_steps = wrapped_env._max_episode_steps
+        env.name = name
     return env
+
 
 def get_dataset(env):
     dataset = env.get_dataset()
@@ -51,6 +59,7 @@ def get_dataset(env):
         get_max_delta(dataset)
 
     return dataset
+
 
 def sequence_dataset(env, preprocess_fn):
     """
@@ -102,9 +111,9 @@ def sequence_dataset(env, preprocess_fn):
         episode_step += 1
 
 
-#-----------------------------------------------------------------------------#
-#-------------------------------- maze2d fixes -------------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# -------------------------------- maze2d fixes -------------------------------#
+# -----------------------------------------------------------------------------#
 
 def process_maze2d_episode(episode):
     '''

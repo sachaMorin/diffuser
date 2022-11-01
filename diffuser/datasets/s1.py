@@ -16,6 +16,7 @@ class S1(gym.GoalEnv):
     MAX_ANGLE_DEGREE = 15
 
     def __init__(self, seed=42):
+        self.name = 's1'
         self.max_angle_radians = self.MAX_ANGLE_DEGREE * np.pi / 180
         high_action = np.array([self.max_angle_radians], dtype=np.float32)
         self.action_space = spaces.Box(low=-high_action, high=high_action, dtype=np.float32)
@@ -31,6 +32,8 @@ class S1(gym.GoalEnv):
         self.state = None
         self.goal = None
         self.state_buffer = []
+        self._max_episode_steps = 100
+        self.t = 0
 
     def step(self, action):
         action = np.clip(action, a_min=self.action_space.low, a_max=self.action_space.high)
@@ -41,6 +44,8 @@ class S1(gym.GoalEnv):
         # Save state
         self.state_buffer.append(self.state)
 
+        self.t += 1
+
         return self._get_obs(), reward, terminated, False, {}
 
     def _get_obs(self):
@@ -49,14 +54,38 @@ class S1(gym.GoalEnv):
         return np.hstack((state, goal))[0]
 
     def _terminal(self):
-        diff = min((2 * np.pi) - abs(self.state - self.goal), abs(self.state - self.goal))
-        return diff < .3
+        diff = min((2 * np.pi) - abs(self.state - self.goal), abs(self.state - self.goal))[0]
+        return diff < .3 or self.t == self._max_episode_steps
 
     def reset(self):
+        self.t = 0
         self.state = self.observation_space['observation'].sample()
         self.goal = self.observation_space['observation'].sample()
         self.state_buffer = [self.state]
         super().reset()
+
+        return self._get_obs()
+
+    def get_dataset(self):
+        dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
+        for _ in range(10):
+            terminal = False
+            obs = self.reset()
+            while not terminal:
+                action = abs(self.action_space.sample())
+                next_obs, reward, terminal, _, _ = self.step(action)
+                dataset['observations'].append(obs)
+                dataset['actions'].append(action[0])
+                dataset['rewards'].append(reward)
+                dataset['terminals'].append(terminal)
+
+                obs = next_obs
+
+        # Concat observations
+        for k, v in dataset.items():
+            dataset[k] = np.stack(v)
+
+        return dataset
 
     def render(self, mode='human'):
         c = plt.Circle((0, 0), 1.00, color='k', fill=False)
@@ -78,13 +107,13 @@ class S1(gym.GoalEnv):
 
 
 
-env = S1(seed=42)
-for _ in range(10):
-    terminal = False
-    env.reset()
-    while not terminal:
-        action = abs(env.action_space.sample())
-        obs, _, terminal, _, _ = env.step(action)
-        print(obs)
-
-    env.render()
+# env = S1(seed=42)
+# for _ in range(10):
+#     terminal = False
+#     env.reset()
+#     while not terminal:
+#         action = abs(env.action_space.sample())
+#         obs, _, terminal, _, _ = env.step(action)
+#         print(obs)
+#
+#     env.render()
