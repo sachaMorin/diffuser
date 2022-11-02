@@ -116,8 +116,8 @@ class S1(gym.GoalEnv):
 
 
 
-env = S1(seed=42)
-env.get_dataset(render=True)
+# env = S1(seed=42)
+# env.get_dataset(render=True)
 # for _ in range(10):
 #     terminal = False
 #     env.reset()
