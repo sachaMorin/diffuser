@@ -6,7 +6,7 @@ import diffuser.utils as utils
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'hopper-medium-expert-v2'
+    dataset: str = 'S1-v1'
     config: str = 'config.locomotion'
 
 args = Parser().parse_args('diffusion')
@@ -27,15 +27,14 @@ dataset_config = utils.Config(
     max_path_length=args.max_path_length,
 )
 
-# render_config = utils.Config(
-#     args.renderer,
-#     savepath=(args.savepath, 'render_config.pkl'),
-#     env=args.dataset,
-# )
+render_config = utils.Config(
+    args.renderer,
+    savepath=(args.savepath, 'render_config.pkl'),
+    env=args.dataset,
+)
 
 dataset = dataset_config()
-# renderer = render_config()
-renderer = None
+renderer = render_config()
 
 observation_dim = dataset.observation_dim
 action_dim = dataset.action_dim

@@ -176,3 +176,11 @@ halfcheetah_medium_replay_v2 = halfcheetah_medium_v2 = halfcheetah_medium_expert
         't_stopgrad': 4,
     },
 }
+
+S1_v1 = {
+    'diffusion' : {
+        'n_train_steps': 1000,
+        'n_steps_per_epoch': 100,
+        'renderer': 'utils.GeometricRenderer'
+    }
+}

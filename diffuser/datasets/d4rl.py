@@ -2,8 +2,6 @@ import os
 import collections
 import numpy as np
 import gym
-import pdb
-from .s1 import S1
 
 from contextlib import (
     contextmanager,
@@ -25,7 +23,7 @@ def suppress_output():
 
 with suppress_output():
     ## d4rl prints out a variety of warnings
-    import d4rl
+    pass
 
 
 # -----------------------------------------------------------------------------#
@@ -33,17 +31,14 @@ with suppress_output():
 # -----------------------------------------------------------------------------#
 
 def load_environment(name):
-    if name == 's1':
-        env = S1()
-    else:
-        if type(name) != str:
-            ## name is already an environment
-            return name
-        with suppress_output():
-            wrapped_env = gym.make(name)
-        env = wrapped_env.unwrapped
-        env.max_episode_steps = wrapped_env._max_episode_steps
-        env.name = name
+    if type(name) != str:
+        ## name is already an environment
+        return name
+    with suppress_output():
+        wrapped_env = gym.make(name)
+    env = wrapped_env.unwrapped
+    env.max_episode_steps = wrapped_env._max_episode_steps
+    env.name = name
     return env
 
 

@@ -11,7 +11,26 @@ def angle_to_polar(theta):
     return np.vstack((cos, sin)).T
 
 
-class S1(gym.GoalEnv):
+def fig2data(fig):
+    """
+    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
+    @param fig a matplotlib figure
+    @return a numpy 3D array of RGBA values
+    """
+    # draw the renderer
+    fig.canvas.draw()
+
+    # Get the RGBA buffer from the figure
+    w, h = fig.canvas.get_width_height()
+    buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+    buf.shape = (w, h, 4)
+
+    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
+    buf = np.roll(buf, 3, axis=2)
+    return buf
+
+
+class S1(gym.Env):
     metadata = {'render.modes': ['human']}
     MAX_ANGLE_DEGREE = 15
 
@@ -21,14 +40,13 @@ class S1(gym.GoalEnv):
         high_action = np.array([self.max_angle_radians], dtype=np.float32)
         self.action_space = spaces.Box(low=-high_action, high=high_action, dtype=np.float32)
         self.action_space.seed(seed)
+
         high = np.array([2 * np.pi], np.float32)
         low = np.array([0.0], np.float32)
-        self.observation_space = gym.spaces.Dict(
-            observation=spaces.Box(low=low, high=high, dtype=np.float32),
-            achieved_goal=spaces.Box(low=low, high=high, dtype=np.float32),
-            desired_goal=spaces.Box(low=low, high=high, dtype=np.float32),
-        )
+
+        self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
         self.observation_space.seed(seed)
+
         self.state = None
         self.goal = None
         self.state_buffer = []
@@ -50,8 +68,8 @@ class S1(gym.GoalEnv):
 
     def _get_obs(self):
         state = angle_to_polar(self.state)
-        goal = angle_to_polar(self.goal)
-        return np.hstack((state, goal))[0]
+        # goal = angle_to_polar(self.goal)
+        return state[0]
 
     def _terminal(self):
         diff = min((2 * np.pi) - abs(self.state - self.goal), abs(self.state - self.goal))[0]
@@ -59,10 +77,9 @@ class S1(gym.GoalEnv):
 
     def reset(self):
         self.t = 0
-        self.state = self.observation_space['observation'].sample()
-        self.goal = self.observation_space['observation'].sample()
+        self.state = self.observation_space.sample()
+        self.goal = self.observation_space.sample()
         self.state_buffer = [self.state]
-        super().reset()
 
         return self._get_obs()
 
@@ -90,10 +107,9 @@ class S1(gym.GoalEnv):
         for k, v in dataset.items():
             dataset[k] = np.stack(v)
 
-
         return dataset
 
-    def render(self, mode='human'):
+    def render(self, observations=None, mode='human'):
         c = plt.Circle((0, 0), 1.00, color='k', fill=False)
         fig, ax = plt.subplots()
         ax.set_xlim((-1.1, 1.1))
@@ -105,16 +121,23 @@ class S1(gym.GoalEnv):
         ax.spines['left'].set_visible(False)
         ax.axis('off')
         ax.set_aspect('equal', adjustable='box')
-        traj = np.concatenate(self.state_buffer)
-        polar_coords = angle_to_polar(traj)
+
+        # Use provided observations or own state buffer
+        if observations is None:
+            traj = np.concatenate(self.state_buffer)
+            polar_coords = angle_to_polar(traj)
+            goal = angle_to_polar(self.goal)
+        else:
+            polar_coords = observations
+            goal = observations[-1]
+
         ax.scatter(*polar_coords.T, c='b', s=100)
-        ax.scatter(*angle_to_polar(self.goal).T, c='r', s=100)
+        ax.scatter(*goal, c='r', s=100)
         ax.scatter(*polar_coords[0], c='m', s=100)
-        fig.show()
 
+        im = fig2data(fig)
 
-
-
+        return im
 
 # env = S1(seed=42)
 # env.get_dataset(render=True)

@@ -17,6 +17,10 @@ ENVIRONMENT_SPECS = (
         'id': 'AntFullObs-v2',
         'entry_point': ('diffuser.environments.ant:AntFullObsEnv'),
     },
+    {
+        'id': 'S1-v1',
+        'entry_point': ('diffuser.environments.s1:S1'),
+    },
 )
 
 def register_environments():

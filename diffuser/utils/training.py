@@ -185,7 +185,7 @@ class Trainer(object):
         observations = self.dataset.normalizer.unnormalize(normed_observations, 'observations')
 
         savepath = os.path.join(self.logdir, f'_sample-reference.png')
-        # self.renderer.composite(savepath, observations)
+        self.renderer.composite(savepath, observations)
 
     def render_samples(self, batch_size=2, n_samples=2):
         '''
@@ -224,4 +224,4 @@ class Trainer(object):
             observations = self.dataset.normalizer.unnormalize(normed_observations, 'observations')
 
             savepath = os.path.join(self.logdir, f'sample-{self.step}-{i}.png')
-            # self.renderer.composite(savepath, observations)
+            self.renderer.composite(savepath, observations)
