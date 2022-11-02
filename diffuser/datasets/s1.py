@@ -66,13 +66,15 @@ class S1(gym.GoalEnv):
 
         return self._get_obs()
 
-    def get_dataset(self):
+    def get_dataset(self, render=False):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
-        for _ in range(10):
+        for _ in range(1000):
             terminal = False
             obs = self.reset()
+            delta_angle = (self.goal - self.state) % (2 * np.pi) - np.pi
+            sign = 1 if delta_angle < 0 else -1
             while not terminal:
-                action = abs(self.action_space.sample())
+                action = sign * abs(self.action_space.sample())
                 next_obs, reward, terminal, _, _ = self.step(action)
                 dataset['observations'].append(obs)
                 dataset['actions'].append(action[0])
@@ -81,9 +83,13 @@ class S1(gym.GoalEnv):
 
                 obs = next_obs
 
+            if render:
+                self.render()
+
         # Concat observations
         for k, v in dataset.items():
             dataset[k] = np.stack(v)
+
 
         return dataset
 
@@ -100,14 +106,18 @@ class S1(gym.GoalEnv):
         ax.axis('off')
         ax.set_aspect('equal', adjustable='box')
         traj = np.concatenate(self.state_buffer)
-        ax.scatter(*angle_to_polar(traj).T, c='b', s=100)
+        polar_coords = angle_to_polar(traj)
+        ax.scatter(*polar_coords.T, c='b', s=100)
         ax.scatter(*angle_to_polar(self.goal).T, c='r', s=100)
+        ax.scatter(*polar_coords[0], c='m', s=100)
         fig.show()
 
 
 
 
-# env = S1(seed=42)
+
+env = S1(seed=42)
+env.get_dataset(render=True)
 # for _ in range(10):
 #     terminal = False
 #     env.reset()
