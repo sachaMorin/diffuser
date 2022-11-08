@@ -131,7 +131,7 @@ class S1(gym.Env):
             polar_coords = observations
             goal = observations[-1]
 
-        ax.scatter(*polar_coords.T, c='b', s=100)
+        ax.plot(*polar_coords.T, c='b')
         ax.scatter(*goal, c='r', s=100)
         ax.scatter(*polar_coords[0], c='m', s=100)
 

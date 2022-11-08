@@ -28,23 +28,23 @@ diffusion_experiment = utils.load_diffusion(
 )
 
 ## ensure that the diffusion model and value function are compatible with each other
-
 diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
 renderer = diffusion_experiment.renderer
 
-start = torch.tensor([[1.0, 0.0]])
-stop = torch.tensor([[0.0, 1.0]])
 
-conditions = {0: start, -1: stop}
-samples = diffusion(conditions)
-trajectories = utils.to_np(samples.trajectories)
+for _ in range(10):
+    start = torch.tensor([[1.0, 0.0]])
+    stop = torch.tensor([[0.0, 1.0]])
 
-# First column is action. Get coordinates
-trajectory = trajectories[0, :, 1:]
+    conditions = {0: start, -1: stop}
+    samples = diffusion(conditions)
+    trajectories = utils.to_np(samples.trajectories)
 
-print(trajectory)
-im = renderer.render(trajectory)
+    # First column is action. Get coordinates
+    trajectory = trajectories[0, :, 1:]
 
-plt.imshow(im)
-plt.show()
+    im = renderer.render(trajectory)
+
+    plt.imshow(im)
+    plt.show()
