@@ -179,8 +179,10 @@ halfcheetah_medium_replay_v2 = halfcheetah_medium_v2 = halfcheetah_medium_expert
 
 S1_v1 = {
     'diffusion' : {
-        'n_train_steps': 1000,
+        'n_train_steps': 10001,
+        'save_freq': 2000,
         'n_steps_per_epoch': 100,
-        'renderer': 'utils.GeometricRenderer'
+        'renderer': 'utils.GeometricRenderer',
+        'loader': 'datasets.GoalDataset',
     }
 }
