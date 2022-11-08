@@ -7,7 +7,7 @@ import diffuser.utils as utils
 from diffuser.datasets.preprocessing import get_policy_preprocess_fn
 
 
-Trajectories = namedtuple('Trajectories', 'actions observations values')
+Trajectories = namedtuple('Trajectories', 'actions observations values chains')
 
 
 class GuidedPolicy:
@@ -20,12 +20,14 @@ class GuidedPolicy:
         self.preprocess_fn = get_policy_preprocess_fn(preprocess_fns)
         self.sample_kwargs = sample_kwargs
 
-    def __call__(self, conditions, batch_size=1, verbose=True):
+    def __call__(self, conditions, batch_size=1, verbose=True, return_chain=False):
+        # return_chain can be used to return all the diffusion process in a tensor
         conditions = {k: self.preprocess_fn(v) for k, v in conditions.items()}
         conditions = self._format_conditions(conditions, batch_size)
 
         ## run reverse diffusion process
-        samples = self.diffusion_model(conditions, guide=self.guide, verbose=verbose, **self.sample_kwargs)
+        samples = self.diffusion_model(conditions, guide=self.guide, verbose=verbose,
+                                       return_chain=return_chain, **self.sample_kwargs)
         trajectories = utils.to_np(samples.trajectories)
 
         ## extract action [ batch_size x horizon x transition_dim ]
@@ -38,7 +40,20 @@ class GuidedPolicy:
         normed_observations = trajectories[:, :, self.action_dim:]
         observations = self.normalizer.unnormalize(normed_observations, 'observations')
 
-        trajectories = Trajectories(actions, observations, samples.values)
+        # If chain is returned, make sure we also unormalized it
+        if return_chain:
+            chains = utils.to_np(samples.chains)
+
+            ## extract observations
+            ## [ n_samples x (n_diffusion_steps + 1) x horizon x observation_dim ]
+            normed_observations = chains[:, :, :, self.action_dim:]
+
+            ## unnormalize observation samples from model
+            chains = self.normalizer.unnormalize(normed_observations, 'observations')
+        else:
+            chains = None
+
+        trajectories = Trajectories(actions, observations, samples.values, chains)
         return action, trajectories
 
     @property

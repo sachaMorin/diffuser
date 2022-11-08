@@ -1,4 +1,4 @@
-"""Render a few S1 trajectories."""
+import os
 import pdb
 import torch
 import numpy as np
@@ -8,6 +8,7 @@ import numpy as np
 import diffuser.utils as utils
 import matplotlib.pyplot as plt
 from diffuser.models.diffusion import default_sample_fn
+from diffuser.utils.colab import run_diffusion, show_diffusion
 
 
 #-----------------------------------------------------------------------------#
@@ -38,7 +39,6 @@ diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
 renderer = diffusion_experiment.renderer
 
-
 policy_config = utils.Config(
     args.policy,
     guide=None,
@@ -55,38 +55,18 @@ policy_config = utils.Config(
 )
 policy = policy_config()
 
+mid = np.sqrt(2)/2
+cond = {0: torch.tensor([1.0, 0.0]), -1: torch.tensor([-mid, -mid])}
 
-#  Specify manual start/stop goals first
-start = torch.tensor([
-    [1.0, 0.0],
-    [1.0, 0.0],
-    [1.0, 0.0],
-    [1.0, 0.0],
-])
+_, samples = policy(cond, batch_size=1, verbose=args.verbose, return_chain=True)
 
-stop = torch.tensor([
-    [np.sqrt(2) / 2, np.sqrt(2) / 2],
-    [0.0, 1.0],
-    [-1.0, 0.0],
-    [0.0, -1.0],
-])
+chains = samples.chains[0]
 
-# Add random start stop goals
-new_starts = torch.randn((6, 2))
-new_starts /= torch.linalg.norm(new_starts, dim=1).reshape((-1, 1))
-start = torch.cat((start, new_starts))
+save_base = os.path.join(args.loadbase, args.dataset, args.diffusion_loadpath)
+show_diffusion(renderer,
+               chains,
+               savebase=save_base,
+               n_repeat=10,
+               fps=5,
+               )
 
-new_goals = torch.randn((6, 2))
-new_goals /= torch.linalg.norm(new_goals, dim=1).reshape((-1, 1))
-stop = torch.cat((stop, new_goals))
-
-
-
-# Render trajectories
-for s, g in zip(start, stop):
-    conditions = {0: s, -1: g}
-    _, samples = policy(conditions, batch_size=1, verbose=args.verbose)
-    trajectory = utils.to_np(samples.observations)[0]
-    im = renderer.render(trajectory)
-    plt.imshow(im)
-    plt.show()

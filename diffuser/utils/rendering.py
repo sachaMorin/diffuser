@@ -112,7 +112,7 @@ class GeometricRenderer:
         return composite
 
     def composite(self, savepath, paths, dim=(1024, 256), **kwargs):
-        pass
+        return self.env.render(paths)
 
     def render_rollout(self, savepath, states, **video_kwargs):
         if type(states) is list: states = np.array(states)

@@ -137,7 +137,18 @@ class S1(gym.Env):
         ax.scatter(*goal, c='r', s=100)
         ax.scatter(*polar_coords[0], c='m', s=100)
 
-        im = fig2data(fig)
+        # Image from plot
+        ax.axis('off')
+        fig.tight_layout(pad=0)
+
+        # To remove the huge white borders
+        ax.margins(0)
+
+        fig.canvas.draw()
+        im = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        im = im.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        plt.close()
 
         return im
 

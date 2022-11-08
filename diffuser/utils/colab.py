@@ -17,20 +17,20 @@ from .arrays import to_torch, to_np
 from .video import save_video
 
 
-def run_diffusion(model, dataset, obs, n_samples=1, device='cuda:0', **diffusion_kwargs):
-  ## normalize observation for model
-  obs = dataset.normalizer.normalize(obs, 'observations')
+def run_diffusion(model, dataset, cond, n_samples=1, device='cuda:0', **diffusion_kwargs):
+  # ## normalize observation for model
+  # obs = dataset.normalizer.normalize(obs, 'observations')
+  #
+  # ## add a batch dimension and repeat for multiple samples
+  # ## [ observation_dim ] --> [ n_samples x observation_dim ]
+  # obs = obs[None].repeat(n_samples, axis=0)
+  #
+  # ## format `conditions` input for model
+  # conditions = {
+  #   0: to_torch(obs, device=device)
+  # }
 
-  ## add a batch dimension and repeat for multiple samples
-  ## [ observation_dim ] --> [ n_samples x observation_dim ]
-  obs = obs[None].repeat(n_samples, axis=0)
-
-  ## format `conditions` input for model
-  conditions = {
-    0: to_torch(obs, device=device)
-  }
-
-  samples, diffusion = model.conditional_sample(conditions,
+  samples, diffusion = model.conditional_sample(cond,
         return_diffusion=True, verbose=False, **diffusion_kwargs)
 
   ## [ n_samples x (n_diffusion_steps + 1) x horizon x (action_dim + observation_dim)]
@@ -50,7 +50,9 @@ def run_diffusion(model, dataset, obs, n_samples=1, device='cuda:0', **diffusion
   return observations
 
 
-def show_diffusion(renderer, observations, n_repeat=100, substep=1, filename='diffusion.mp4', savebase='/content/videos'):
+def show_diffusion(renderer, observations,
+                   n_repeat=100, substep=1,
+                   filename='diffusion.mp4', savebase='/content/videos', fps=5):
     '''
         observations : [ n_diffusion_steps x batch_size x horizon x observation_dim ]
     '''
@@ -73,8 +75,9 @@ def show_diffusion(renderer, observations, n_repeat=100, substep=1, filename='di
         images[-1:].repeat(n_repeat, axis=0)
     ], axis=0)
 
-    save_video(savepath, images)
-    show_video(savepath)
+    save_video(savepath, images, fps=fps)
+    print(f'Video saved to {savepath}')
+    # show_video(savepath)
 
 
 def show_sample(renderer, observations, filename='sample.mp4', savebase='/content/videos'):
