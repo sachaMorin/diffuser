@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import einops
 import pdb
+import matplotlib.pyplot as plt
 
 from .arrays import batch_to_device, to_np, to_device, apply_dict
 from .timer import Timer
@@ -85,6 +86,7 @@ class Trainer(object):
 
         self.reset_parameters()
         self.step = 0
+        self.loss_buffer = list()
 
     def reset_parameters(self):
         self.ema_model.load_state_dict(self.model.state_dict())
@@ -113,6 +115,8 @@ class Trainer(object):
 
             self.optimizer.step()
             self.optimizer.zero_grad()
+
+            self.loss_buffer.append(loss.item())
 
             if self.step % self.update_ema_every == 0:
                 self.step_ema()
@@ -148,6 +152,12 @@ class Trainer(object):
         print(f'[ utils/training ] Saved model to {savepath}', flush=True)
         if self.bucket is not None:
             sync_logs(self.logdir, bucket=self.bucket, background=self.save_parallel)
+
+        x = np.arange(len(self.loss_buffer))
+        plt.plot(x, self.loss_buffer)
+        plt.savefig(os.path.join(self.logdir, f'loss.png'))
+
+
 
     def load(self, epoch):
         '''
