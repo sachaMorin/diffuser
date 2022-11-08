@@ -83,9 +83,9 @@ class S1(gym.Env):
 
         return self._get_obs()
 
-    def get_dataset(self, render=False):
+    def get_dataset(self, render=False, n_samples=1000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
-        for _ in range(1000):
+        for _ in range(n_samples):
             terminal = False
             obs = self.reset()
             delta_angle = (self.goal - self.state) % (2 * np.pi) - np.pi
@@ -101,7 +101,9 @@ class S1(gym.Env):
                 obs = next_obs
 
             if render:
-                self.render()
+                im = self.render()
+                plt.imshow(im)
+                plt.show()
 
         # Concat observations
         for k, v in dataset.items():
@@ -126,7 +128,7 @@ class S1(gym.Env):
         if observations is None:
             traj = np.concatenate(self.state_buffer)
             polar_coords = angle_to_polar(traj)
-            goal = angle_to_polar(self.goal)
+            goal = angle_to_polar(self.goal)[0]
         else:
             polar_coords = observations
             goal = observations[-1]
@@ -141,12 +143,3 @@ class S1(gym.Env):
 
 # env = S1(seed=42)
 # env.get_dataset(render=True)
-# for _ in range(10):
-#     terminal = False
-#     env.reset()
-#     while not terminal:
-#         action = abs(env.action_space.sample())
-#         obs, _, terminal, _, _ = env.step(action)
-#         print(obs)
-#
-#     env.render()

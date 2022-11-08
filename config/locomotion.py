@@ -184,5 +184,8 @@ S1_v1 = {
         'n_steps_per_epoch': 100,
         'renderer': 'utils.GeometricRenderer',
         'loader': 'datasets.GoalDataset',
+        'horizon': 8,
+        'n_diffusion_steps': 20,
+        'dim_mults': (1, 4, 8),
     }
 }
