@@ -31,6 +31,7 @@ base = {
         'dim_mults': (1, 2, 4, 8),
         'attention': False,
         'renderer': 'utils.MuJoCoRenderer',
+        'projection': None,
 
         ## dataset
         'loader': 'datasets.SequenceDataset',
@@ -187,5 +188,6 @@ S1_v1 = {
         'horizon': 12,
         'n_diffusion_steps': 20,
         'dim_mults': (1, 4, 8),
+        'projection': 'spherical',
     }
 }

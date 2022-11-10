@@ -19,6 +19,7 @@ class GuidedPolicy:
         self.action_dim = diffusion_model.action_dim
         self.preprocess_fn = get_policy_preprocess_fn(preprocess_fns)
         self.sample_kwargs = sample_kwargs
+        self.normalizer.torchify('cpu')
 
     def __call__(self, conditions, batch_size=1, verbose=True, return_chain=False):
         # return_chain can be used to return all the diffusion process in a tensor

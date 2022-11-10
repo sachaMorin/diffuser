@@ -70,6 +70,8 @@ diffusion_config = utils.Config(
     loss_weights=args.loss_weights,
     loss_discount=args.loss_discount,
     device=args.device,
+    normalizer=dataset.normalizer,
+    projection=args.projection
 )
 
 trainer_config = utils.Config(

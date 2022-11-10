@@ -43,7 +43,7 @@ def make_timesteps(batch_size, i, device):
 class GaussianDiffusion(nn.Module):
     def __init__(self, model, horizon, observation_dim, action_dim, n_timesteps=1000,
                  loss_type='l1', clip_denoised=False, predict_epsilon=True,
-                 action_weight=1.0, loss_discount=1.0, loss_weights=None,
+                 action_weight=1.0, loss_discount=1.0, loss_weights=None, projection=None, normalizer=None
                  ):
         super().__init__()
         self.horizon = horizon
@@ -51,6 +51,8 @@ class GaussianDiffusion(nn.Module):
         self.action_dim = action_dim
         self.transition_dim = observation_dim + action_dim
         self.model = model
+        self.projection = projection
+        self.normalizer = normalizer
 
         betas = cosine_beta_schedule(n_timesteps)
         alphas = 1. - betas
@@ -90,6 +92,9 @@ class GaussianDiffusion(nn.Module):
         ## get loss coefficients and initialize objective
         loss_weights = self.get_loss_weights(action_weight, loss_discount, loss_weights)
         self.loss_fn = Losses[loss_type](loss_weights, self.action_dim)
+
+        # Make sure normalizer can also handle torch tensors
+        self.normalizer.torchify(self.betas.device)
 
     def get_loss_weights(self, action_weight, discount, weights_dict):
         '''
@@ -163,6 +168,10 @@ class GaussianDiffusion(nn.Module):
 
         batch_size = shape[0]
         x = torch.randn(shape, device=device)
+
+        # Projection onto the manifold during denoising process
+        x = self.project(x)
+
         x = apply_conditioning(x, cond, self.action_dim)
 
         chain = [x] if return_chain else None
@@ -171,7 +180,12 @@ class GaussianDiffusion(nn.Module):
         for i in reversed(range(0, self.n_timesteps)):
             t = make_timesteps(batch_size, i, device)
             x, values = sample_fn(self, x, cond, t, **sample_kwargs)
+
+            # Projection onto the manifold during denoising process
+            x = self.project(x)
+
             x = apply_conditioning(x, cond, self.action_dim)
+
 
             progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
             if return_chain: chain.append(x)
@@ -221,6 +235,9 @@ class GaussianDiffusion(nn.Module):
                 noise = torch.randn_like(sample_naive[i])
                 sample_naive[i] = self.sqrt_alphas[j] * sample_naive[i] + self.sqrt_one_minus_alphas[j] * noise
 
+                # Project to manifold
+                sample_naive[i] = self.project(sample_naive[i].unsqueeze(0))[0]
+
                 # Save chain
                 if return_chain:
                     chain.append(sample_naive[i].clone())
@@ -254,6 +271,27 @@ class GaussianDiffusion(nn.Module):
 
     def forward(self, cond, *args, **kwargs):
         return self.conditional_sample(cond, *args, **kwargs)
+
+    def project(self, x):
+        # Unormalize state
+        obs = x[:, :, self.action_dim:]
+        obs = self.normalizer.unnormalize(obs, "observations")
+
+        if self.projection is None:
+            pass
+        elif self.projection == "spherical":
+            # Ignore perfect 0s, they usually indicate padding
+            not_zero = ~(obs == 0).all(dim=2)
+
+            obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=1, keepdim=True)
+        else:
+            raise ValueError('value for self.projection is invalid.')
+
+        # Renormalize state
+        obs = self.normalizer.normalize(obs, "observations")
+        x[:, :, self.action_dim:] = obs
+
+        return x
 
 
 class ValueDiffusion(GaussianDiffusion):

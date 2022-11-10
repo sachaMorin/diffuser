@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.interpolate as interpolate
 import pdb
+import torch
 
 POINTMASS_KEYS = ['observations', 'actions', 'next_observations', 'deltas']
 
@@ -43,6 +44,10 @@ class DatasetNormalizer:
 
     def get_field_normalizers(self):
         return self.normalizers
+
+    def torchify(self, device):
+        for n in self.normalizers.values():
+            n.torchify(device)
 
 def flatten(dataset, path_lengths):
     '''
@@ -134,6 +139,8 @@ class GaussianNormalizer(Normalizer):
         self.means = self.X.mean(axis=0)
         self.stds = self.X.std(axis=0)
         self.z = 1
+        self.means_torch = None
+        self.stds_torch = None
 
     def __repr__(self):
         return (
@@ -143,10 +150,20 @@ class GaussianNormalizer(Normalizer):
         )
 
     def normalize(self, x):
+        if torch.is_tensor(x):
+            return (x - self.means_torch.to(x.device)) / self.stds_torch.to(x.device)
+
         return (x - self.means) / self.stds
 
     def unnormalize(self, x):
+        if torch.is_tensor(x):
+            return x * self.stds_torch.to(x.device) + self.means_torch.to(x.device)
+
         return x * self.stds + self.means
+
+    def torchify(self, device):
+        self.means_torch = torch.from_numpy(self.means).to(device)
+        self.stds_torch = torch.from_numpy(self.stds).to(device)
 
 
 class LimitsNormalizer(Normalizer):
