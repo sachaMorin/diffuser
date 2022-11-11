@@ -77,7 +77,8 @@ show_diffusion(renderer,
 # Make sure you have a full trajectory otherwise you may end up with the goal outside the manifold due to padding
 traj = torch.from_numpy(dataset[10].trajectories) # Get first trajectory
 traj = traj.to(diffusion.betas.device).unsqueeze(0)
-trajs = diffusion.q_sample(traj, t=torch.tensor([[diffusion.n_timesteps]]), return_chain=True).cpu().numpy()
+t = torch.Tensor([diffusion.n_timesteps]).long().to(traj.device)
+trajs = diffusion.q_sample(traj, t=t, return_chain=True).cpu().numpy()
 trajs = dataset.normalizer.unnormalize(trajs[:, :, dataset.action_dim:], "observations")
 trajs = trajs[:, :-1, :]  # Trim trajectory here to remove padding
 

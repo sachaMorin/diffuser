@@ -215,34 +215,68 @@ class GaussianDiffusion(nn.Module):
         if noise is None:
             noise = torch.randn_like(x_start)
 
-        sample_naive = x_start.clone()
-
+        # ORIGINAL DIFFUSION WITH JUMP GAUSSIANS
         # sample = (
         #     extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
         #     extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         # )
 
-        # Naive slow diffusion
-        # TODO: could be made faster, but doesn't seem to be a bottleneck rn
+        # NAIVE SLOW DIFFUSION + PROJECTION
+        # Loop over batch and timestep
         # Iterate over batch
-        for i, t_i in enumerate(t):
-            # Buffer to save the chain
+        # sample = x_start.clone()
+        #
+        # for i, t_i in enumerate(t):
+        #     # Buffer to save the chain
+        #     if return_chain:
+        #         chain = [sample[i].clone()]
+        #
+        #     # Iterate over diffusion steps
+        #     for j in range(t_i):
+        #         # Add noise
+        #         noise = torch.randn_like(sample[i])
+        #         sample[i] = self.sqrt_alphas[j] * sample[i] + self.sqrt_one_minus_alphas[j] * noise
+        #
+        #         # Project to manifold
+        #         sample[i] = self.project(sample[i].unsqueeze(0))[0]
+        #
+        #         # Save chain
+        #         if return_chain:
+        #             chain.append(sample[i].clone())
+
+        # BETTER DIFFUSION + PROJECTION
+        # Only loop over timestep
+        # Attempt to make it faster
+        sample = x_start
+
+        if return_chain:
+            chain = [sample]
+
+        # Iterate over diffusion steps
+        for t_i in range(t.max().item()):
+            # Mask alphas where diffusion is done
+            diffusion_is_done = t_i > t
+            sqrt_alphas = self.sqrt_alphas[t_i] * torch.ones_like(t)
+            sqrt_alphas[diffusion_is_done] = 1. # Multiplication Identity
+            sqrt_one_minus_alphas = self.sqrt_one_minus_alphas[t_i] * torch.ones_like(t)
+            sqrt_one_minus_alphas[diffusion_is_done] = 0. # Addition Identity
+
+            # Reshape coefficients for proper broadcast
+            sqrt_alphas = sqrt_alphas.reshape((-1, 1, 1))
+            sqrt_one_minus_alphas = sqrt_one_minus_alphas.reshape((-1, 1, 1))
+
+            # Add noise
+            noise = torch.randn_like(sample)
+            sample = sqrt_alphas * sample + sqrt_one_minus_alphas * noise
+
+            # Project to manifold
+            sample = self.project(sample)
+
+            # Save chain
             if return_chain:
-                chain = [sample_naive[i].clone()]
+                chain.append(sample.clone())
 
-            # Iterate over diffusion steps
-            for j in range(t_i):
-                noise = torch.randn_like(sample_naive[i])
-                sample_naive[i] = self.sqrt_alphas[j] * sample_naive[i] + self.sqrt_one_minus_alphas[j] * noise
-
-                # Project to manifold
-                sample_naive[i] = self.project(sample_naive[i].unsqueeze(0))[0]
-
-                # Save chain
-                if return_chain:
-                    chain.append(sample_naive[i].clone())
-
-        sample = sample_naive if not return_chain else torch.stack(chain)
+        sample = sample if not return_chain else torch.cat(chain)
 
         return sample
 
