@@ -3,29 +3,28 @@ import pdb
 import torch
 import numpy as np
 
-
 # import diffuser.sampling as sampling
 import diffuser.utils as utils
 import matplotlib.pyplot as plt
 from diffuser.models.diffusion import default_sample_fn
 
 
-#-----------------------------------------------------------------------------#
-#----------------------------------- setup -----------------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# ----------------------------------- setup -----------------------------------#
+# -----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
     dataset: str = 'S1-v1'
     config: str = 'config.locomotion'
 
+
 args = Parser().parse_args('plan')
 
 args.diffusion_loadpath = 'diffusion/defaults_H12_T20'
 
-
-#-----------------------------------------------------------------------------#
-#---------------------------------- loading ----------------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# ---------------------------------- loading ----------------------------------#
+# -----------------------------------------------------------------------------#
 
 ## load diffusion model and value function from disk
 diffusion_experiment = utils.load_diffusion(
@@ -37,7 +36,6 @@ diffusion_experiment = utils.load_diffusion(
 diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
 renderer = diffusion_experiment.renderer
-
 
 policy_config = utils.Config(
     args.policy,
@@ -55,14 +53,13 @@ policy_config = utils.Config(
 )
 policy = policy_config()
 
-
 #  Specify manual start/stop goals first
 start = torch.tensor([
     [1.0, 0.0],
     [1.0, 0.0],
     [1.0, 0.0],
-    # [1.0, 0.0],
-    # [1.0, 0.0],
+    [1.0, 0.0],
+    [1.0, 0.0],
     # [1.0, 0.0],
     # [1.0, 0.0],
 ])
@@ -71,8 +68,8 @@ stop = torch.tensor([
     [np.sqrt(2) / 2, np.sqrt(2) / 2],
     [0.0, 1.0],
     [0.0, -1.0],
-    # [-1.0, 0.0],
-    # [-1.0, 0.0],
+    [-1.0, 0.0],
+    [-1.0, 0.0],
     # [-1.0, 0.0],
     # [-1.0, 0.0],
 ])
@@ -85,8 +82,6 @@ start = torch.cat((start, new_starts))
 new_goals = torch.randn((6, 2))
 new_goals /= torch.linalg.norm(new_goals, dim=1).reshape((-1, 1))
 stop = torch.cat((stop, new_goals))
-
-
 
 # Render trajectories
 for s, g in zip(start, stop):
