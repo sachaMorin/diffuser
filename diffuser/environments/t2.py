@@ -4,12 +4,27 @@ import numpy as np
 from gym import spaces
 import matplotlib.pyplot as plt
 
+from diffuser.environments.utils import set_axes_equal, surface_plot, triu_plot
+
 
 def angle_to_polar_t2(theta):
     theta = np.repeat(theta, 2, axis=-1)
     theta[..., [0, 2]] = np.cos(theta[..., [0, 2]])
     theta[..., [1, 3]] = np.sin(theta[..., [1, 3]])
     return theta
+
+
+def polar_to_3D(polar, R, r):
+    cos_phi, sin_phi, cos_theta, sin_theta = polar.T
+    emb = np.zeros((polar.shape[0], 3))
+    emb[:, 0] = (R + r * cos_theta) * cos_phi
+    emb[:, 1] = (R + r * cos_theta) * sin_phi
+    emb[:, 2] = r * sin_theta
+    return emb
+
+
+def angle_to_3D(angle, R, r):
+    return polar_to_3D(angle_to_polar_t2(angle), R, r)
 
 
 class T2(gym.Env):
@@ -38,8 +53,16 @@ class T2(gym.Env):
         self._max_episode_steps = 100
         self.t = 0
 
+        # Radius
+        self.R = 3
+        self.r = 1
+
+    def random_step(self):
+        action = self.action_space.sample()
+        self.step(action)
+
     def step(self, action):
-        action= np.array(action)
+        action = np.array(action)
         action = np.clip(action, a_min=0.0, a_max=2 * np.pi)
         self.state = (self.state + action) % (2 * np.pi)
         self.state_polar = angle_to_polar_t2(self.state)
@@ -48,7 +71,7 @@ class T2(gym.Env):
         reward = -1.0 if not terminated else 0.0
 
         # Save state
-        self.state_buffer.append(self.state)
+        self.state_buffer.append(self.state_polar)
 
         self.t += 1
 
@@ -66,9 +89,30 @@ class T2(gym.Env):
         self.state_polar = angle_to_polar_t2(self.state)
         self.goal = self.observation_space.sample()
         self.goal_polar = angle_to_polar_t2(self.goal)
-        self.state_buffer = [self.state]
+        self.state_buffer = [self.state_polar]
 
         return self._get_obs()
+
+    def sample(self, n_samples):
+        result = []
+        n = 0
+
+        # Rejection sampling to achieve uniform sampling on the Torus
+        while n < n_samples:
+            phi, theta, w = np.random.uniform(size=(3, 5000))
+            phi *= 2 * np.pi
+            theta *= 2 * np.pi
+
+            c = self.R + self.r * np.cos(theta)
+
+            # Rejection sampling
+            accepted = w < c / (self.R + self.r)
+            n += accepted.sum()
+            result.append(np.stack([theta, phi]).T)
+
+        angles = np.concatenate(result)[:n_samples]
+
+        return angle_to_polar_t2(angles), angles
 
     def get_dataset(self, render=False, n_samples=1000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
@@ -99,53 +143,48 @@ class T2(gym.Env):
         return dataset
 
     def render(self, observations=None, mode='human'):
-        pass
-        # c = plt.Circle((0, 0), 1.00, color='k', fill=False)
-        # fig, ax = plt.subplots()
-        # ax.set_xlim((-1.1, 1.1))
-        # ax.set_ylim((-1.1, 1.1))
-        # ax.add_patch(c)
-        # ax.spines['top'].set_visible(False)
-        # ax.spines['right'].set_visible(False)
-        # ax.spines['bottom'].set_visible(False)
-        # ax.spines['left'].set_visible(False)
-        # ax.axis('off')
-        # ax.set_aspect('equal', adjustable='box')
-        #
-        # # Use provided observations or own state buffer
-        # if observations is None:
-        #     traj = np.concatenate(self.state_buffer)
-        #     polar_coords = angle_to_polar(traj)
-        #     goal = angle_to_polar(self.goal)[0]
-        # else:
-        #     polar_coords = observations
-        #     goal = observations[-1]
-        #
-        # ax.plot(*polar_coords.T, c='b')
-        # ax.scatter(*goal, c='r', s=100)
-        # ax.scatter(*polar_coords[0], c='m', s=100)
-        #
-        # # Image from plot
-        # ax.axis('off')
-        # fig.tight_layout(pad=0)
-        #
-        # # To remove the huge white borders
-        # ax.margins(0)
-        #
-        # fig.canvas.draw()
-        # im = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        # im = im.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        #
-        # plt.close()
-        #
-        # return im
+        # Use provided observations or own state buffer
+        if observations is None:
+            traj = np.stack(self.state_buffer + [self.goal_polar])
+        else:
+            traj = observations
+
+        # Plot manifold mesh
+        u = np.linspace(0, 2.0 * np.pi, endpoint=True, num=50)
+        v = np.linspace(0, 2.0 * np.pi, endpoint=True, num=20)
+        theta, phi = np.meshgrid(u, v)
+        theta, phi = theta.flatten(), phi.flatten()
+        angles = np.stack([theta, phi]).T
+        fig, ax = triu_plot(angle_to_3D(angles, self.R, self.r), angles)
+
+        # Plot trajectory
+        traj = polar_to_3D(traj, self.R, self.r)
+        surface_plot(traj[:-1], fig=fig, ax=ax)
+        ax.scatter(*traj[-1], c='r', s=100)
+        ax.scatter(*traj[0], c='m', s=100)
+
+
+        # Remove border
+        fig.tight_layout(pad=0)
+        ax.margins(0)
+
+        fig.canvas.draw()
+        im = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        im = im.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        plt.close()
+
+        return im
+
 
 env = T2(seed=123)
 obs = env.reset()
-print(env.state)
-obs = env.step([np.pi, np.pi])
-print(env.state)
-
+obs = np.stack([np.linspace(-.75 * np.pi, 2 * -np.pi, num=100), 0 * np.ones(100)]).T
+# for _ in range(0):
+#     env.step([np.pi/8, np.pi/24])
+im = env.render(angle_to_polar_t2(obs))
+plt.imshow(im)
+plt.show()
 
 # env = S1(seed=42)
 # env.get_dataset(render=True)
