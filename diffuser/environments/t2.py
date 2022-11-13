@@ -7,26 +7,6 @@ import matplotlib.pyplot as plt
 from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
 
 
-def angle_to_polar_t2(theta):
-    theta = np.repeat(theta, 2, axis=-1)
-    theta[..., [0, 2]] = np.cos(theta[..., [0, 2]])
-    theta[..., [1, 3]] = np.sin(theta[..., [1, 3]])
-    return theta
-
-
-def polar_to_3D(polar, R, r):
-    cos_phi, sin_phi, cos_theta, sin_theta = polar.T
-    emb = np.zeros((polar.shape[0], 3))
-    emb[:, 0] = (R + r * cos_theta) * cos_phi
-    emb[:, 1] = (R + r * cos_theta) * sin_phi
-    emb[:, 2] = r * sin_theta
-    return emb
-
-
-def angle_to_3D(angle, R, r):
-    return polar_to_3D(angle_to_polar_t2(angle), R, r)
-
-
 class T2(gym.Env):
     metadata = {'render.modes': ['human']}
     MAX_ANGLE_DEGREE = 15
@@ -46,10 +26,10 @@ class T2(gym.Env):
         self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
         self.observation_space.seed(seed)
 
-        self.state = None
-        self.state_polar = None
-        self.goal = None
-        self.goal_polar = None
+        self.state_intrinsic = None
+        self.state_embedding = None
+        self.goal_intrisic = None
+        self.goal_embedding = None
         self.state_buffer = []
         self._max_episode_steps = 100
         self.t = 0
@@ -68,32 +48,49 @@ class T2(gym.Env):
     def step(self, action):
         action = np.array(action)
         action = np.clip(action, a_min=0.0, a_max=2 * np.pi)
-        self.state = (self.state + action) % (2 * np.pi)
-        self.state_polar = angle_to_polar_t2(self.state)
+        self.state_intrinsic = (self.state_intrinsic + action) % (2 * np.pi)
+        self.state_embedding = self.intrisic_to_embedding(self.state_intrinsic)
 
         terminated = self._terminal()
         reward = -1.0 if not terminated else 0.0
 
         # Save state
-        self.state_buffer.append(self.state_polar)
+        self.state_buffer.append(self.state_embedding)
 
         self.t += 1
 
         return self._get_obs(), reward, terminated, False, {}
 
     def _get_obs(self):
-        return self.state_polar
+        return self.state_embedding
 
     def _terminal(self):
-        return np.linalg.norm(self.goal_polar - self.state_polar) < 1e-2 or self.t == self._max_episode_steps
+        return np.linalg.norm(self.goal_embedding - self.state_embedding) < 1e-2 or self.t == self._max_episode_steps
+
+    def intrisic_to_embedding(self, intrinsic):
+        emb = np.repeat(intrinsic, 2, axis=-1)
+        emb[..., [0, 2]] = np.cos(emb[..., [0, 2]])
+        emb[..., [1, 3]] = np.sin(emb[..., [1, 3]])
+        return emb
+
+    def embedding_to_3D(self, embedding):
+        cos_phi, sin_phi, cos_theta, sin_theta = embedding.T
+        emb = np.zeros((embedding.shape[0], 3))
+        emb[:, 0] = (self.R + self.r * cos_theta) * cos_phi
+        emb[:, 1] = (self.R + self.r * cos_theta) * sin_phi
+        emb[:, 2] = self.r * sin_theta
+        return emb
+
+    def intrinsic_to_3D(self, intrinsic):
+        return self.embedding_to_3D(self.intrisic_to_embedding(intrinsic))
 
     def reset(self):
         self.t = 0
-        self.state = self.observation_space.sample()
-        self.state_polar = angle_to_polar_t2(self.state)
-        self.goal = self.observation_space.sample()
-        self.goal_polar = angle_to_polar_t2(self.goal)
-        self.state_buffer = [self.state_polar]
+        self.state_intrinsic = self.observation_space.sample()
+        self.state_embedding = self.intrisic_to_embedding(self.state_intrinsic)
+        self.goal_intrisic = self.observation_space.sample()
+        self.goal_embedding = self.intrisic_to_embedding(self.goal_intrisic)
+        self.state_buffer = [self.state_embedding]
 
         return self._get_obs()
 
@@ -103,7 +100,7 @@ class T2(gym.Env):
 
         # Rejection sampling to achieve uniform sampling on the Torus
         while n < n_samples:
-            phi, theta, w = self.rng.uniform(size=(3, 5000))
+            phi, theta, w = self.rng.uniform(size=(3, 1000))
             phi *= 2 * np.pi
             theta *= 2 * np.pi
 
@@ -116,7 +113,7 @@ class T2(gym.Env):
 
         angles = np.concatenate(result)[:n_samples]
 
-        return angle_to_polar_t2(angles)
+        return self.intrisic_to_embedding(angles)
 
     def get_dataset(self, render=False, n_samples=1000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
@@ -141,7 +138,7 @@ class T2(gym.Env):
     def render(self, observations=None, mode='human'):
         # Use provided observations or own state buffer
         if observations is None:
-            traj = np.stack(self.state_buffer + [self.goal_polar])
+            traj = np.stack(self.state_buffer + [self.goal_embedding])
         else:
             traj = observations
 
@@ -151,10 +148,10 @@ class T2(gym.Env):
         theta, phi = np.meshgrid(u, v)
         theta, phi = theta.flatten(), phi.flatten()
         angles = np.stack([theta, phi]).T
-        fig, ax = triu_plot(angle_to_3D(angles, self.R, self.r), angles)
+        fig, ax = triu_plot(self.intrinsic_to_3D(angles), angles)
 
         # Plot trajectory
-        traj = polar_to_3D(traj, self.R, self.r)
+        traj = self.embedding_to_3D(traj)
         surface_plot(traj, fig=fig, ax=ax)
         ax.scatter(*traj[-1], c='r', s=100)
         ax.scatter(*traj[0], c='m', s=100)
