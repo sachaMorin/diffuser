@@ -191,3 +191,17 @@ S1_v1 = {
         'projection': 'spherical',
     }
 }
+
+T2_v1 = {
+    'diffusion' : {
+        'n_train_steps': 10001,
+        'save_freq': 2000,
+        'n_steps_per_epoch': 100,
+        'renderer': 'utils.GeometricRenderer',
+        'loader': 'datasets.GoalDataset',
+        'horizon': 12,
+        'n_diffusion_steps': 20,
+        'dim_mults': (1, 4, 8),
+        'projection': "torus",
+    }
+}

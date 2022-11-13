@@ -151,15 +151,15 @@ class GaussianNormalizer(Normalizer):
 
     def normalize(self, x):
         if torch.is_tensor(x):
-            return (x - self.means_torch.to(x.device)) / self.stds_torch.to(x.device)
+            return (x - self.means_torch.to(x.device)) / (self.stds_torch.to(x.device) + 1e-12)
 
-        return (x - self.means) / self.stds
+        return (x - self.means) / (self.stds + 1e-12)
 
     def unnormalize(self, x):
         if torch.is_tensor(x):
-            return x * self.stds_torch.to(x.device) + self.means_torch.to(x.device)
+            return x * (self.stds_torch.to(x.device) + 1e-12) + self.means_torch.to(x.device)
 
-        return x * self.stds + self.means
+        return x * (self.stds + 1e-12) + self.means
 
     def torchify(self, device):
         self.means_torch = torch.from_numpy(self.means).to(device)

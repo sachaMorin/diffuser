@@ -4,7 +4,7 @@ import numpy as np
 from gym import spaces
 import matplotlib.pyplot as plt
 
-from diffuser.environments.utils import set_axes_equal, surface_plot, triu_plot
+from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
 
 
 def angle_to_polar_t2(theta):
@@ -31,7 +31,8 @@ class T2(gym.Env):
     metadata = {'render.modes': ['human']}
     MAX_ANGLE_DEGREE = 15
 
-    def __init__(self, seed=42):
+    def __init__(self, seed=42, horizon=12):
+        self.rng = np.random.RandomState(seed)
         self.name = 't2'
         self.max_angle_radians = self.MAX_ANGLE_DEGREE * np.pi / 180
         high_action = np.array([self.max_angle_radians, self.max_angle_radians], dtype=np.float32)
@@ -56,6 +57,9 @@ class T2(gym.Env):
         # Radius
         self.R = 3
         self.r = 1
+
+        # Expert planner for generating dataset
+        self.planner = ManifoldPlanner(self, horizon=horizon)
 
     def random_step(self):
         action = self.action_space.sample()
@@ -99,7 +103,7 @@ class T2(gym.Env):
 
         # Rejection sampling to achieve uniform sampling on the Torus
         while n < n_samples:
-            phi, theta, w = np.random.uniform(size=(3, 5000))
+            phi, theta, w = self.rng.uniform(size=(3, 5000))
             phi *= 2 * np.pi
             theta *= 2 * np.pi
 
@@ -112,33 +116,25 @@ class T2(gym.Env):
 
         angles = np.concatenate(result)[:n_samples]
 
-        return angle_to_polar_t2(angles), angles
+        return angle_to_polar_t2(angles)
 
     def get_dataset(self, render=False, n_samples=1000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
         for _ in range(n_samples):
-            terminal = False
-            obs = self.reset()
-            delta_angle = (self.goal - self.state) % (2 * np.pi) - np.pi
-            sign = 1 if delta_angle < 0 else -1
-            while not terminal:
-                action = sign * abs(self.action_space.sample())
-                next_obs, reward, terminal, _, _ = self.step(action)
-                dataset['observations'].append(obs)
-                dataset['actions'].append(action[0])
-                dataset['rewards'].append(reward)
-                dataset['terminals'].append(terminal)
-
-                obs = next_obs
-
-            if render:
-                im = self.render()
-                plt.imshow(im)
-                plt.show()
+            traj = self.planner.path()
+            actions = np.zeros((traj.shape[0], 2))
+            terminal = np.zeros(traj.shape[0])
+            terminal[-1] = True
+            reward = -1 * np.ones(traj.shape[0])
+            reward[-1] = 0.0
+            dataset['observations'].append(traj)
+            dataset['actions'].append(actions)
+            dataset['rewards'].append(reward)
+            dataset['terminals'].append(terminal)
 
         # Concat observations
         for k, v in dataset.items():
-            dataset[k] = np.stack(v)
+            dataset[k] = np.concatenate(v)
 
         return dataset
 
@@ -159,13 +155,12 @@ class T2(gym.Env):
 
         # Plot trajectory
         traj = polar_to_3D(traj, self.R, self.r)
-        surface_plot(traj[:-1], fig=fig, ax=ax)
+        surface_plot(traj, fig=fig, ax=ax)
         ax.scatter(*traj[-1], c='r', s=100)
         ax.scatter(*traj[0], c='m', s=100)
 
-
         # Remove border
-        fig.tight_layout(pad=0)
+        # fig.tight_layout(pad=0)
         ax.margins(0)
 
         fig.canvas.draw()
@@ -175,16 +170,3 @@ class T2(gym.Env):
         plt.close()
 
         return im
-
-
-env = T2(seed=123)
-obs = env.reset()
-obs = np.stack([np.linspace(-.75 * np.pi, 2 * -np.pi, num=100), 0 * np.ones(100)]).T
-# for _ in range(0):
-#     env.step([np.pi/8, np.pi/24])
-im = env.render(angle_to_polar_t2(obs))
-plt.imshow(im)
-plt.show()
-
-# env = S1(seed=42)
-# env.get_dataset(render=True)

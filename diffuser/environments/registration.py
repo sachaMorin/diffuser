@@ -21,6 +21,10 @@ ENVIRONMENT_SPECS = (
         'id': 'S1-v1',
         'entry_point': ('diffuser.environments.s1:S1'),
     },
+    {
+        'id': 'T2-v1',
+        'entry_point': ('diffuser.environments.t2:T2'),
+    },
 )
 
 def register_environments():

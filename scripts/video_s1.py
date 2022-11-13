@@ -16,7 +16,7 @@ from diffuser.utils.colab import run_diffusion, show_diffusion
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'S1-v1'
+    dataset: str = 'T2-v1'
     config: str = 'config.locomotion'
 
 args = Parser().parse_args('plan')
@@ -58,7 +58,7 @@ policy = policy_config()
 mid = np.sqrt(2)/2
 
 # Visualize the denoising process
-cond = {0: torch.tensor([1.0, 0.0]), -1: torch.tensor([-mid, -mid])}
+cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, -1.0, 1.0, 0.0])}
 
 _, samples = policy(cond, batch_size=1, verbose=args.verbose, return_chain=True)
 
@@ -80,11 +80,13 @@ traj = traj.to(diffusion.betas.device).unsqueeze(0)
 t = torch.Tensor([diffusion.n_timesteps]).long().to(traj.device)
 trajs = diffusion.q_sample(traj, t=t, return_chain=True).cpu().numpy()
 trajs = dataset.normalizer.unnormalize(trajs[:, :, dataset.action_dim:], "observations")
-trajs = trajs[:, :-1, :]  # Trim trajectory here to remove padding
+# trajs = trajs[:, :-1, :]  # Trim trajectory here to remove padding
+
 
 # Fix start and goal
 trajs[:, 0, :] = trajs[0, 0, :]
 trajs[:, -1, :] = trajs[0, -1, :]
+
 
 show_diffusion(renderer,
                trajs,
