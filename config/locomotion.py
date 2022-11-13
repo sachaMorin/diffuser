@@ -1,3 +1,4 @@
+import copy
 import socket
 
 from diffuser.utils import watch
@@ -209,4 +210,9 @@ T2_v1 = {
         'seed': 42,
     }
 }
-T2_v1['plan'] = T2_v1['diffusion']
+T2_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+S2_v1 = copy.deepcopy(T2_v1)
+S2_v1['diffusion']['projection'] = "spherical"
+S2_v1['plan'] = copy.deepcopy(S2_v1['diffusion'])
+

@@ -1,7 +1,9 @@
+import copy
 import os
 import pdb
 import torch
 import numpy as np
+import copy
 
 
 # import diffuser.sampling as sampling
@@ -16,12 +18,12 @@ from diffuser.utils.colab import run_diffusion, show_diffusion
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'T2-v1'
+    dataset: str = 'S2-v1'
     config: str = 'config.locomotion'
 
 args = Parser().parse_args('plan')
 
-args.diffusion_loadpath = 'diffusion/defaults_H12_T20_PNone_S42'
+args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pspherical_S42'
 
 
 #-----------------------------------------------------------------------------#
@@ -58,7 +60,10 @@ policy = policy_config()
 mid = np.sqrt(2)/2
 
 # Visualize the denoising process
-cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, -1.0, 1.0, 0.0])}
+# Torus
+# cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, -1.0, 1.0, 0.0])}
+cond = {0: torch.tensor([1.0, 0.0, 0.0]), -1: torch.tensor([0.0, -1.0, 0.0])}
+cond_copy = copy.deepcopy(cond)
 
 _, samples = policy(cond, batch_size=1, verbose=args.verbose, return_chain=True)
 
@@ -75,8 +80,15 @@ show_diffusion(renderer,
 
 # Visualize the diffusion process
 # Make sure you have a full trajectory otherwise you may end up with the goal outside the manifold due to padding
-traj = torch.from_numpy(dataset[12].trajectories) # Get first trajectory
-traj = traj.to(diffusion.betas.device).unsqueeze(0)
+traj = dataset.env.planner.path(cond_copy[0].cpu().numpy(), cond_copy[-1].cpu().numpy())
+traj = np.expand_dims(traj, 0)
+# Add dummy actions
+dummy_actions = np.zeros((traj.shape[0], traj.shape[1], dataset.action_dim))
+traj = np.concatenate((dummy_actions, traj), axis=-1)
+traj[:, :, dataset.action_dim:] =  dataset.normalizer.normalize(traj[:, :, dataset.action_dim:], "observations")
+traj[:, :, :dataset.action_dim] =  dataset.normalizer.normalize(traj[:, :, :dataset.action_dim], "actions")
+traj = torch.from_numpy(traj) # Get first trajectory
+traj = traj.to(diffusion.betas.device)
 t = torch.Tensor([diffusion.n_timesteps]).long().to(traj.device)
 trajs = diffusion.q_sample(traj, t=t, return_chain=True).cpu().numpy()
 trajs = dataset.normalizer.unnormalize(trajs[:, :, dataset.action_dim:], "observations")

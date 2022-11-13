@@ -49,7 +49,7 @@ class ManifoldEnv(gym.Env):
 
     def step(self, action):
         action = np.array(action)
-        self.state_intrinsic = self._update_state_intrinsic(action)
+        self._update_state_intrinsic(action)
         self.state_embedding = self.intrisic_to_embedding(self.state_intrinsic)
 
         terminated = self._terminal()
@@ -162,7 +162,7 @@ class T2(ManifoldEnv):
 
         self.name = 't2'
 
-    def _update_state(self, action):
+    def _update_state_intrinsic(self, action):
         self.state_intrinsic = (self.state_intrinsic + action) % (2 * np.pi)
 
     def intrisic_to_embedding(self, intrinsic):
@@ -203,6 +203,50 @@ class T2(ManifoldEnv):
     def get_intrisic_mesh(self):
         u = np.linspace(0, 2.0 * np.pi, endpoint=True, num=50)
         v = np.linspace(0, 2.0 * np.pi, endpoint=True, num=20)
+        theta, phi = np.meshgrid(u, v)
+        theta, phi = theta.flatten(), phi.flatten()
+        angles = np.stack([theta, phi]).T
+        return angles
+
+
+class S2(ManifoldEnv):
+    metadata = {'render.modes': ['human']}
+
+    def __init__(self, max_angle_degree=15, **kwargs):
+        self.max_angle_radians = max_angle_degree * np.pi / 180
+
+        # Boundaries
+        high_action = np.array([self.max_angle_radians, self.max_angle_radians], dtype=np.float32)
+        low_action = -high_action
+        self.high_obs = np.array([2 * np.pi, np.pi], np.float32)
+        low_obs = np.array([0.0, 0.0], np.float32)
+
+        super().__init__(low_obs=low_obs, high_obs=self.high_obs, low_action=low_action, high_action=high_action, **kwargs)
+
+        self.name = 't2'
+
+    def _update_state_intrinsic(self, action):
+        self.state_intrinsic = (self.state_intrinsic + action) % self.high_obs
+
+    def intrisic_to_embedding(self, intrinsic):
+        if intrinsic.ndim == 1:
+            intrinsic = intrinsic.reshape((1, -1))
+
+        phi, theta = intrinsic.T
+        emb = np.zeros((intrinsic.shape[0], 3))
+        emb[:, 0] = np.sin(theta) * np.cos(phi)
+        emb[:, 1] = np.sin(theta) * np.sin(phi)
+        emb[:, 2] = np.cos(theta)
+        return np.squeeze(emb)
+
+    def sample(self, n_samples):
+        samples = self.rng.normal(size=(n_samples, 3))
+        samples /= np.linalg.norm(samples, axis=1, keepdims=True)
+        return samples
+
+    def get_intrisic_mesh(self):
+        u = np.linspace(0, 2.0 * np.pi, endpoint=True, num=50)
+        v = np.linspace(0, np.pi, endpoint=True, num=50)
         theta, phi = np.meshgrid(u, v)
         theta, phi = theta.flatten(), phi.flatten()
         angles = np.stack([theta, phi]).T

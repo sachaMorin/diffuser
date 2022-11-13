@@ -84,7 +84,7 @@ def triu_plot(x, coords, s=20, tilt=30, rotation=-80, edgecolor='k'):
 
 
 class ManifoldPlanner:
-    def __init__(self, env, n_samples=2000, horizon=12, random_seed=42):
+    def __init__(self, env, n_samples=5000, horizon=12, random_seed=42):
         self.samples = env.sample(n_samples)
         self.n = self.samples.shape[0]
         self.graph = kneighbors_graph(self.samples, n_neighbors=10, mode='distance')
