@@ -23,7 +23,7 @@ ENVIRONMENT_SPECS = (
     },
     {
         'id': 'T2-v1',
-        'entry_point': ('diffuser.environments.t2:T2'),
+        'entry_point': ('diffuser.environments.manifolds:T2'),
     },
 )
 
