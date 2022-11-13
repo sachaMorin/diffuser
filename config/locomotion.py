@@ -11,6 +11,8 @@ args_to_watch = [
     ('prefix', ''),
     ('horizon', 'H'),
     ('n_diffusion_steps', 'T'),
+    ('projection', 'P'),
+    ('seed', 'S'),
     ## value kwargs
     ('discount', 'd'),
 ]
@@ -138,8 +140,8 @@ base = {
         'discount': 0.997,
 
         ## loading
-        'diffusion_loadpath': 'f:diffusion/defaults_H{horizon}_T{n_diffusion_steps}',
-        'value_loadpath': 'f:values/defaults_H{horizon}_T{n_diffusion_steps}_d{discount}',
+        'diffusion_loadpath': 'f:diffusion/defaults_H{horizon}_T{n_diffusion_steps}_P{projection}_S{seed}',
+        'value_loadpath': 'f:values/defaults_H{horizon}_T{n_diffusion_steps}_d{discount}_P{projection}_S{seed}',
 
         'diffusion_epoch': 'latest',
         'value_epoch': 'latest',
@@ -180,7 +182,7 @@ halfcheetah_medium_replay_v2 = halfcheetah_medium_v2 = halfcheetah_medium_expert
 
 S1_v1 = {
     'diffusion' : {
-        'n_train_steps': 10001,
+        'n_train_steps': 10500,
         'save_freq': 2000,
         'n_steps_per_epoch': 100,
         'renderer': 'utils.GeometricRenderer',
@@ -189,12 +191,13 @@ S1_v1 = {
         'n_diffusion_steps': 20,
         'dim_mults': (1, 4, 8),
         'projection': 'spherical',
+        'seed': 42,
     }
 }
 
 T2_v1 = {
     'diffusion' : {
-        'n_train_steps': 10001,
+        'n_train_steps': 10500,
         'save_freq': 2000,
         'n_steps_per_epoch': 100,
         'renderer': 'utils.GeometricRenderer',
@@ -203,5 +206,7 @@ T2_v1 = {
         'n_diffusion_steps': 20,
         'dim_mults': (1, 4, 8),
         'projection': "torus",
+        'seed': 42,
     }
 }
+T2_v1['plan'] = T2_v1['diffusion']

@@ -21,7 +21,7 @@ class Parser(utils.Parser):
 
 args = Parser().parse_args('plan')
 
-args.diffusion_loadpath = 'diffusion/defaults_H12_T20'
+args.diffusion_loadpath = 'diffusion/defaults_H12_T20_PNone_S42'
 
 
 #-----------------------------------------------------------------------------#

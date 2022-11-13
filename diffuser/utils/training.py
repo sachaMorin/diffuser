@@ -157,6 +157,8 @@ class Trainer(object):
         plt.plot(x, self.loss_buffer)
         plt.savefig(os.path.join(self.logdir, f'loss.png'))
 
+        np.save(os.path.join(self.logdir, f'loss.npy'), np.array(self.loss_buffer))
+
 
 
     def load(self, epoch):
