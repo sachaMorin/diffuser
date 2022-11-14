@@ -46,7 +46,7 @@ policy_config = utils.Config(
     guide=None,
     scale=args.scale,
     diffusion_model=diffusion,
-    normalizer=dataset.normalizer,
+    normalizer=diffusion.normalizer,
     preprocess_fns=args.preprocess_fns,
     ## sampling kwargs
     sample_fn=default_sample_fn,
@@ -87,15 +87,15 @@ show_diffusion(renderer,
 traj = dataset.env.planner.path(cond_copy[0].cpu().numpy(), cond_copy[-1].cpu().numpy())
 traj = np.expand_dims(traj, 0)
 # Add dummy actions
-dummy_actions = np.zeros((traj.shape[0], traj.shape[1], dataset.action_dim))
+dummy_actions = np.zeros((traj.shape[0], traj.shape[1], diffusion.action_dim))
 traj = np.concatenate((dummy_actions, traj), axis=-1)
-traj[:, :, dataset.action_dim:] =  dataset.normalizer.normalize(traj[:, :, dataset.action_dim:], "observations")
-traj[:, :, :dataset.action_dim] =  dataset.normalizer.normalize(traj[:, :, :dataset.action_dim], "actions")
+traj[:, :, diffusion.action_dim:] =  diffusion.normalizer.normalize(traj[:, :, diffusion.action_dim:], "observations")
+traj[:, :, :diffusion.action_dim] =  diffusion.normalizer.normalize(traj[:, :, :diffusion.action_dim], "actions")
 traj = torch.from_numpy(traj) # Get first trajectory
 traj = traj.to(diffusion.betas.device)
 t = torch.Tensor([diffusion.n_timesteps]).long().to(traj.device)
 trajs = diffusion.q_sample(traj, t=t, return_chain=True).cpu().numpy()
-trajs = dataset.normalizer.unnormalize(trajs[:, :, dataset.action_dim:], "observations")
+trajs = diffusion.normalizer.unnormalize(trajs[:, :, diffusion.action_dim:], "observations")
 trajs = trajs[:, :-1, :]  # Trim trajectory here to remove padding
 
 
