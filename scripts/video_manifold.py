@@ -23,7 +23,7 @@ class Parser(utils.Parser):
 
 args = Parser().parse_args('plan')
 
-args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pspherical_S42'
+# args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pspherical_S42'
 
 
 #-----------------------------------------------------------------------------#
@@ -61,8 +61,12 @@ mid = np.sqrt(2)/2
 
 # Visualize the denoising process
 # Torus
-# cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, -1.0, 1.0, 0.0])}
-cond = {0: torch.tensor([1.0, 0.0, 0.0]), -1: torch.tensor([0.0, -1.0, 0.0])}
+if args.dataset == 'T2-v1':
+    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, -1.0, 1.0, 0.0])}
+elif args.dataset == 'S2-v1':
+    cond = {0: torch.tensor([1.0, 0.0, 0.0]), -1: torch.tensor([0.0, -1.0, 0.0])}
+else:
+    raise ValueError('Wrong dataset name.')
 cond_copy = copy.deepcopy(cond)
 
 _, samples = policy(cond, batch_size=1, verbose=args.verbose, return_chain=True)
