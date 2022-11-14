@@ -1,3 +1,4 @@
+import torch
 from abc import ABC
 
 import gym
@@ -35,7 +36,7 @@ class ManifoldEnv(gym.Env):
         self.t = 0
 
         # Expert planner for generating dataset
-        self.planner = ManifoldPlanner(self, horizon=horizon)
+        self.planner = ManifoldPlanner(self)
 
     def get_planner(self):
         return ManifoldPlanner(self, horizon=self.horizon)
@@ -94,8 +95,20 @@ class ManifoldEnv(gym.Env):
 
     def get_dataset(self, render=False, n_samples=1000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
-        for _ in range(n_samples):
-            traj = self.planner.path()
+        for i in range(n_samples):
+            traj = []
+            while len(traj) < self.horizon:
+                traj = self.planner.path()
+
+            # Lower the resolution down to horizon
+            if traj.shape[0] > 2 * self.horizon:
+                step = traj.shape[0] // self.horizon
+                traj = traj[::step]
+
+            # Then just pick first self.horizon observations
+            traj = traj[:self.horizon]
+
+            # Fillers
             actions = np.zeros((traj.shape[0], 2))
             terminal = np.zeros(traj.shape[0])
             terminal[-1] = True
@@ -109,6 +122,7 @@ class ManifoldEnv(gym.Env):
         # Concat observations
         for k, v in dataset.items():
             dataset[k] = np.concatenate(v)
+
 
         return dataset
 
@@ -142,6 +156,28 @@ class ManifoldEnv(gym.Env):
         plt.close()
 
         return im
+
+    def projection(self, x):
+        if torch.is_tensor(x):
+            norm = torch.linalg.norm(x, dim=-1, keepdims=True)
+        else:
+            norm = np.linalg.norm(x, axis=-1, keepdims=True)
+
+        norm[norm == 0.0] = 1.00
+
+        return x/norm
+
+    def seq_geodesic_distance(self, x):
+        # See https://stackoverflow.com/questions/52210911/great-circle-distance-between-two-p-x-y-z-points-on-a-unit-sphere#:~:text=the%20distance%20on%20the%20great,%3D%202*phi*R%20.
+        # Given a b sequences of t spherical coordinates (b x t x 3 Tensor)
+        # Return geodesic distance of the trajectory (b Tensor)
+        from_ = x[:, :-1, :]
+        to = x[:, 1:, :]
+        chordal_dist = torch.linalg.norm(to - from_, dim=-1)
+        half_angle = torch.arcsin(chordal_dist/2)
+
+        return (2 * half_angle).sum(dim=-1)
+
 
 
 class T2(ManifoldEnv):
