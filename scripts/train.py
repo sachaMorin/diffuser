@@ -71,7 +71,7 @@ diffusion_config = utils.Config(
     loss_discount=args.loss_discount,
     device=args.device,
     normalizer=dataset.normalizer,
-    projection=dataset.env.projection
+    projection=dataset.env.projection if args.projection else None
 )
 
 trainer_config = utils.Config(
