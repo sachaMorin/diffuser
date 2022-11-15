@@ -36,12 +36,16 @@ class ManifoldEnv(gym.Env):
         self._max_episode_steps = 100
         self.t = 0
 
+        # Manifold planner
+        self.planner = self.get_planner(self.random_state)
+
     def seed(self, seed=None):
         super().seed(seed)
         self.rng = np.random.RandomState(seed)
         self.action_space.seed(seed)
         self.observation_space.seed(seed)
         self.random_state = seed
+        self.planner = self.get_planner(self.random_state)
 
     def get_planner(self, random_state):
         return ManifoldPlanner(self, random_seed=random_state)
@@ -99,14 +103,13 @@ class ManifoldEnv(gym.Env):
         raise NotImplementedError()
 
     def get_dataset(self, n_samples=1000):
-        planner = self.get_planner(self.random_state)
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
         for i in range(n_samples):
             traj = []
 
             # Sample random path
             while len(traj) < self.horizon:
-                traj = planner.path()
+                traj = self.planner.path()
 
             # Lower the resolution down to horizon
             if traj.shape[0] > 2 * self.horizon:

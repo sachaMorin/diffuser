@@ -23,7 +23,7 @@ class Parser(utils.Parser):
 
 args = Parser().parse_args('plan')
 
-# args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pspherical_S42'
+args.diffusion_loadpath = 'diffusion/defaults_H12_T20_PTrue_S1'
 
 
 #-----------------------------------------------------------------------------#
@@ -33,7 +33,7 @@ args = Parser().parse_args('plan')
 ## load diffusion model and value function from disk
 diffusion_experiment = utils.load_diffusion(
     args.loadbase, args.dataset, args.diffusion_loadpath,
-    epoch=args.diffusion_epoch, seed=args.seed,
+    epoch=args.diffusion_epoch,
 )
 
 ## ensure that the diffusion model and value function are compatible with each other

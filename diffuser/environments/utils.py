@@ -87,9 +87,14 @@ class ManifoldPlanner:
     def __init__(self, env, n_samples=5000, random_seed=42):
         self.samples = env.sample(n_samples)
         self.n = self.samples.shape[0]
+        self.rng = np.random.RandomState(random_seed)
+        self.graph = None
+        self.dist = None
+        self.predecessors = None
+
+    def compute_paths(self):
         self.graph = kneighbors_graph(self.samples, n_neighbors=10, mode='distance')
         self.dist, self.predecessors = shortest_path(self.graph, return_predecessors=True, directed=False)
-        self.rng = np.random.RandomState(random_seed)
 
     def nearest_neighor(self, point):
         """Return the index of the nearest neigbor of point in self.samples."""
@@ -97,6 +102,9 @@ class ManifoldPlanner:
         return dist.argmin()
 
     def path(self, start_coords=None, goal_coords=None):
+        if self.graph is None:
+            self.compute_paths()
+
         if start_coords is not None:
             start_coords = np.array(start_coords)
             goal_coords = np.array(goal_coords)
