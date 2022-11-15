@@ -59,7 +59,7 @@ with torch.inference_mode():
         trajectories, conds = batch
         trajectories_pred = diffusion(conds).trajectories
 
-        # Project
+        # Make sure trajectories are projected onto the manifold
         trajectories_pred = diffusion.project(trajectories_pred)
 
         # Unormalize trajectories

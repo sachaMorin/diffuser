@@ -42,8 +42,8 @@ def make_timesteps(batch_size, i, device):
 class GaussianDiffusion(nn.Module):
     def __init__(self, model, horizon, observation_dim, action_dim, n_timesteps=1000,
                  loss_type='l1', clip_denoised=False, predict_epsilon=True,
-                 action_weight=1.0, loss_discount=1.0, loss_weights=None, projection=None, normalizer=None
-                 ):
+                 action_weight=1.0, loss_discount=1.0, loss_weights=None, projection=None, normalizer=None,
+                 mask_action=False):
         super().__init__()
         self.horizon = horizon
         self.observation_dim = observation_dim
@@ -52,6 +52,7 @@ class GaussianDiffusion(nn.Module):
         self.model = model
         self.projection = projection
         self.normalizer = normalizer
+        self.mask_action = mask_action
 
         betas = cosine_beta_schedule(n_timesteps)
         alphas = 1. - betas
@@ -315,27 +316,8 @@ class GaussianDiffusion(nn.Module):
             actions = x[:, :, :self.action_dim]
             actions = self.normalizer.unnormalize(actions, "actions")
 
-            # Manifold projections
+            # Manifold projection
             actions, obs = self.projection(actions, obs)
-
-            # if self.projection is None:
-            #     pass
-            # elif self.projection == "spherical":
-            #     # Ignore perfect 0s, they usually indicate padding
-            #     not_zero = ~(obs == 0).all(dim=2)
-            #
-            #     obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
-            # elif self.projection == "torus":
-            #     b, t, d = obs.shape
-            #     obs = obs.reshape((b, t, 2, d//2))
-            #     # Ignore perfect 0s, they usually indicate padding
-            #     not_zero = ~(obs == 0).all(dim=-1)
-            #
-            #     obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
-            #     obs = obs.reshape((b, t, d))
-            # else:
-            #     raise ValueError('value for self.projection is invalid.')
-            #
 
             # Renormalize state
             obs = self.normalizer.normalize(obs, "observations")
@@ -344,6 +326,9 @@ class GaussianDiffusion(nn.Module):
             # Renormalize actions
             actions = self.normalizer.normalize(actions, "actions")
             x[:, :, :self.action_dim] = actions
+
+        if self.mask_action:
+            x[:, :, :self.action_dim] = 0.0
 
         return x
 

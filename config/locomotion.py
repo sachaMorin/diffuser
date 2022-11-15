@@ -35,6 +35,7 @@ base = {
         'attention': False,
         'renderer': 'utils.MuJoCoRenderer',
         'projection': None,
+        'mask_action': False,
 
         ## dataset
         'loader': 'datasets.SequenceDataset',
@@ -191,7 +192,7 @@ S1_v1 = {
         'horizon': 12,
         'n_diffusion_steps': 20,
         'dim_mults': (1, 4, 8),
-        'projection': 'spherical',
+        'projection': True,
         'seed': 42,
     }
 }
@@ -206,7 +207,8 @@ T2_v1 = {
         'horizon': 12,
         'n_diffusion_steps': 20,
         'dim_mults': (1, 4, 8),
-        'projection': "torus",
+        'projection': True,
+        'mask_action': True,
         'seed': 42,
     }
 }
