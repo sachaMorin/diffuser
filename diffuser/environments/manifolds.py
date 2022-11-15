@@ -139,6 +139,16 @@ class ManifoldEnv(gym.Env):
     def get_intrisic_mesh(self):
         raise NotImplementedError()
 
+    def expand_traj(self, traj, steps=100):
+        """Interpolate in Euclidean space to increase trajectory resolution."""
+        n, d = traj.shape
+        deltas = traj[1:] - traj[:-1]
+        deltas = np.repeat(deltas, steps, axis=0)
+        traj = np.repeat(traj[:-1], steps, axis=0)
+        coefs = np.tile(np.linspace(0, 1, num=steps), n - 1)
+
+        return traj + deltas * coefs.reshape((-1, 1))
+
     def render(self, observations=None, mode='human'):
         # Use provided observations or own state buffer
         if observations is None:
@@ -152,12 +162,18 @@ class ManifoldEnv(gym.Env):
 
         # Plot trajectory
         traj = self.embedding_to_3D(traj)
+        traj = self.expand_traj(traj)
+        _, traj = self.projection(None, traj)
         surface_plot(traj, fig=fig, ax=ax)
-        ax.scatter(*traj[-1], c='r', s=100)
-        ax.scatter(*traj[0], c='m', s=100)
+        ax.scatter(*traj[0], c='#0D0887', s=100, linewidths=1, edgecolors='k')
+        ax.scatter(*traj[-1], c='#F0F921', s=100, linewidths=1, edgecolors='k')
 
         # Remove border
         ax.margins(0)
+        ax.set_yticklabels([])
+        ax.set_xticklabels([])
+
+        # ax.plot3D(*x.T, 'magma', c=np.arange(x.shape[0]), linewidth=2)
 
         fig.canvas.draw()
         im = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)

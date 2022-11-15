@@ -55,8 +55,7 @@ def surface_plot(x, y=None, s=20, fig=None, ax=None, tilt=30, rotation=-80, edge
         ax = p3.Axes3D(fig)
         ax.view_init(tilt, rotation)
 
-    # Triangulate parameter space to determine the triangles
-    ax.plot3D(*x.T, linewidth=3)
+    ax.scatter(*x.T, cmap='plasma', c=np.arange(x.shape[0]), s=1)
     set_axes_equal(ax)
     return fig, ax
 
@@ -77,7 +76,7 @@ def triu_plot(x, coords, s=20, tilt=30, rotation=-80, edgecolor='k'):
 
     # Triangulate parameter space to determine the triangles
     tri = mtri.Triangulation(*coords.T)
-    ax.plot_trisurf(*x.T, color='grey', alpha=.2, triangles=tri.triangles)
+    ax.plot_trisurf(*x.T, color='white', alpha=0.1, triangles=tri.triangles)
     set_axes_equal(ax)
 
     return fig, ax
