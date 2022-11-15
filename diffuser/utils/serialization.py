@@ -44,7 +44,7 @@ def load_diffusion(*loadpath, epoch='latest', device='cuda:0', seed=None):
     ## @TODO : remove results folder from within trainer class
     trainer_config._dict['results_folder'] = os.path.join(*loadpath)
 
-    dataset = dataset_config(seed=seed)
+    dataset = dataset_config()
     renderer = render_config()
     model = model_config()
     diffusion = diffusion_config(model)
