@@ -1,3 +1,4 @@
+import warnings
 import copy
 import os
 import pdb
@@ -57,7 +58,9 @@ with torch.inference_mode():
         batch = batch_to_device(batch)
         trajectories, conds = batch
         trajectories_pred = diffusion(conds).trajectories
-        import pdb; pdb.set_trace()
+
+        # Project
+        trajectories_pred = diffusion.project(trajectories_pred)
 
         # Unormalize trajectories
         trajectories = diffusion.normalizer.unnormalize(trajectories[:, :, dataset.action_dim:], "observations")
@@ -78,9 +81,12 @@ with torch.inference_mode():
         result['diffuser'] += diffuser_dist.tolist()
 
 df = pd.DataFrame(result)
-anomalies = (df['diffuser'] < df['shortest']).sum()
-if anomalies:
-    raise Exception(f"Found {anomalies} trajectories where diffuser < shortest path.")
+anomalies_diffuser = (df['diffuser'] < df['shortest']).sum()
+anomalies_expert = (df['expert'] < df['shortest']).sum()
+if anomalies_diffuser:
+    print(f"Found {anomalies_diffuser} trajectories where diffuser < shortest path.")
+if anomalies_expert:
+    warnings.warn(f"Found {anomalies_expert} trajectories where expert < shortest path.")
 
-print(df)
+print(f"Average over {df.shape[0]} trajectories")
 print(df.mean(axis=0))
