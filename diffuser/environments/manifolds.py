@@ -123,7 +123,6 @@ class ManifoldEnv(gym.Env):
         for k, v in dataset.items():
             dataset[k] = np.concatenate(v)
 
-
         return dataset
 
     def get_intrisic_mesh(self):
@@ -157,27 +156,13 @@ class ManifoldEnv(gym.Env):
 
         return im
 
-    def projection(self, x):
-        if torch.is_tensor(x):
-            norm = torch.linalg.norm(x, dim=-1, keepdims=True)
-        else:
-            norm = np.linalg.norm(x, axis=-1, keepdims=True)
-
-        norm[norm == 0.0] = 1.00
-
-        return x/norm
+    def projection(self, actions, obs):
+        """Project x onto the manifold."""
+        raise NotImplementedError()
 
     def seq_geodesic_distance(self, x):
-        # See https://stackoverflow.com/questions/52210911/great-circle-distance-between-two-p-x-y-z-points-on-a-unit-sphere#:~:text=the%20distance%20on%20the%20great,%3D%202*phi*R%20.
-        # Given a b sequences of t spherical coordinates (b x t x 3 Tensor)
-        # Return geodesic distance of the trajectory (b Tensor)
-        from_ = x[:, :-1, :]
-        to = x[:, 1:, :]
-        chordal_dist = torch.linalg.norm(to - from_, dim=-1)
-        half_angle = torch.arcsin(chordal_dist/2)
-
-        return (2 * half_angle).sum(dim=-1)
-
+        """Compute geodesic distance of sequences."""
+        raise NotImplementedError()
 
 
 class T2(ManifoldEnv):
@@ -244,6 +229,15 @@ class T2(ManifoldEnv):
         angles = np.stack([theta, phi]).T
         return angles
 
+    # def projection(self, actions, obs):
+    #     b, t, d = obs.shape
+    #     obs = obs.reshape((b, t, 2, d//2))
+    #     # Ignore perfect 0s, they usually indicate padding
+    #     not_zero = ~(obs == 0).all(dim=-1)
+    #
+    #     obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
+    #     obs = obs.reshape((b, t, d))
+
 
 class S2(ManifoldEnv):
     metadata = {'render.modes': ['human']}
@@ -257,7 +251,8 @@ class S2(ManifoldEnv):
         self.high_obs = np.array([2 * np.pi, np.pi], np.float32)
         low_obs = np.array([0.0, 0.0], np.float32)
 
-        super().__init__(low_obs=low_obs, high_obs=self.high_obs, low_action=low_action, high_action=high_action, **kwargs)
+        super().__init__(low_obs=low_obs, high_obs=self.high_obs, low_action=low_action, high_action=high_action,
+                         **kwargs)
 
         self.name = 't2'
 
@@ -287,3 +282,24 @@ class S2(ManifoldEnv):
         theta, phi = theta.flatten(), phi.flatten()
         angles = np.stack([theta, phi]).T
         return angles
+
+    def projection(self, actions, obs):
+        if torch.is_tensor(obs):
+            norm = torch.linalg.norm(obs, dim=-1, keepdims=True)
+        else:
+            norm = np.linalg.norm(obs, axis=-1, keepdims=True)
+
+        norm[norm == 0.0] = 1.00
+
+        return actions, obs / norm
+
+    def seq_geodesic_distance(self, x):
+        # See https://stackoverflow.com/questions/52210911/great-circle-distance-between-two-p-x-y-z-points-on-a-unit-sphere#:~:text=the%20distance%20on%20the%20great,%3D%202*phi*R%20.
+        # Given a b sequences of t spherical coordinates (b x t x 3 Tensor)
+        # Return geodesic distance of the trajectory (b Tensor)
+        from_ = x[:, :-1, :]
+        to = x[:, 1:, :]
+        chordal_dist = torch.linalg.norm(to - from_, dim=-1)
+        half_angle = torch.arcsin(chordal_dist / 2)
+
+        return (2 * half_angle).sum(dim=-1)

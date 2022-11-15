@@ -306,31 +306,44 @@ class GaussianDiffusion(nn.Module):
         return self.conditional_sample(cond, *args, **kwargs)
 
     def project(self, x):
-        # Unormalize state
-        obs = x[:, :, self.action_dim:]
-        obs = self.normalizer.unnormalize(obs, "observations")
+        if self.projection is not None:
+            # Unormalize state
+            obs = x[:, :, self.action_dim:]
+            obs = self.normalizer.unnormalize(obs, "observations")
 
-        if self.projection is None:
-            pass
-        elif self.projection == "spherical":
-            # Ignore perfect 0s, they usually indicate padding
-            not_zero = ~(obs == 0).all(dim=2)
+            # Unormalize actions
+            actions = x[:, :, :self.action_dim]
+            actions = self.normalizer.unnormalize(actions, "actions")
 
-            obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
-        elif self.projection == "torus":
-            b, t, d = obs.shape
-            obs = obs.reshape((b, t, 2, d//2))
-            # Ignore perfect 0s, they usually indicate padding
-            not_zero = ~(obs == 0).all(dim=-1)
+            # Manifold projections
+            actions, obs = self.projection(actions, obs)
 
-            obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
-            obs = obs.reshape((b, t, d))
-        else:
-            raise ValueError('value for self.projection is invalid.')
+            # if self.projection is None:
+            #     pass
+            # elif self.projection == "spherical":
+            #     # Ignore perfect 0s, they usually indicate padding
+            #     not_zero = ~(obs == 0).all(dim=2)
+            #
+            #     obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
+            # elif self.projection == "torus":
+            #     b, t, d = obs.shape
+            #     obs = obs.reshape((b, t, 2, d//2))
+            #     # Ignore perfect 0s, they usually indicate padding
+            #     not_zero = ~(obs == 0).all(dim=-1)
+            #
+            #     obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
+            #     obs = obs.reshape((b, t, d))
+            # else:
+            #     raise ValueError('value for self.projection is invalid.')
+            #
 
-        # Renormalize state
-        obs = self.normalizer.normalize(obs, "observations")
-        x[:, :, self.action_dim:] = obs
+            # Renormalize state
+            obs = self.normalizer.normalize(obs, "observations")
+            x[:, :, self.action_dim:] = obs
+
+            # Renormalize actions
+            actions = self.normalizer.normalize(actions, "actions")
+            x[:, :, :self.action_dim] = actions
 
         return x
 
