@@ -41,7 +41,7 @@ base = {
         'normalizer': 'GaussianNormalizer',
         'preprocess_fns': [],
         'clip_denoised': False,
-        'use_padding': True,
+        'use_padding': False,
         'max_path_length': 1000,
 
         ## serialization
@@ -84,7 +84,7 @@ base = {
         'loader': 'datasets.ValueDataset',
         'normalizer': 'GaussianNormalizer',
         'preprocess_fns': [],
-        'use_padding': True,
+        'use_padding': False,
         'max_path_length': 1000,
 
         ## serialization
@@ -198,7 +198,7 @@ S1_v1 = {
 
 T2_v1 = {
     'diffusion' : {
-        'n_train_steps': 10500,
+        'n_train_steps': 10000,
         'save_freq': 2000,
         'n_steps_per_epoch': 100,
         'renderer': 'utils.GeometricRenderer',
