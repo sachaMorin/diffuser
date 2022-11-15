@@ -2,7 +2,6 @@ from collections import namedtuple
 import numpy as np
 import torch
 from torch import nn
-import pdb
 
 import diffuser.utils as utils
 from .helpers import (
@@ -192,7 +191,7 @@ class GaussianDiffusion(nn.Module):
 
         progress.stamp()
 
-        x, values = sort_by_values(x, values)
+        # x, values = sort_by_values(x, values)
         if return_chain: chain = torch.stack(chain, dim=1)
         return Sample(x, values, chain)
 
@@ -317,7 +316,7 @@ class GaussianDiffusion(nn.Module):
             # Ignore perfect 0s, they usually indicate padding
             not_zero = ~(obs == 0).all(dim=2)
 
-            obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=1, keepdim=True)
+            obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
         elif self.projection == "torus":
             b, t, d = obs.shape
             obs = obs.reshape((b, t, 2, d//2))
