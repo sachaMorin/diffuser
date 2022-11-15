@@ -12,9 +12,10 @@ from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
 
 class ManifoldEnv(gym.Env):
     def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12):
-        self.rng = np.random.RandomState(seed)
         self.name = None
         self.horizon = horizon
+        self.random_state = seed
+        self.rng = np.random.RandomState(seed)
 
         # Action space
         self.action_space = spaces.Box(low=np.array(low_action),
@@ -35,11 +36,15 @@ class ManifoldEnv(gym.Env):
         self._max_episode_steps = 100
         self.t = 0
 
-        # Expert planner for generating dataset
-        self.planner = ManifoldPlanner(self)
+    def seed(self, seed=None):
+        super().seed(seed)
+        self.rng = np.random.RandomState(seed)
+        self.action_space.seed(seed)
+        self.observation_space.seed(seed)
+        self.random_state = seed
 
-    def get_planner(self):
-        return ManifoldPlanner(self, horizon=self.horizon)
+    def get_planner(self, random_state):
+        return ManifoldPlanner(self, random_seed=random_state)
 
     def random_step(self):
         action = self.action_space.sample()
@@ -93,12 +98,15 @@ class ManifoldEnv(gym.Env):
         """Return sampled embeddings."""
         raise NotImplementedError()
 
-    def get_dataset(self, render=False, n_samples=1000):
+    def get_dataset(self, n_samples=1000):
+        planner = self.get_planner(self.random_state)
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
         for i in range(n_samples):
             traj = []
+
+            # Sample random path
             while len(traj) < self.horizon:
-                traj = self.planner.path()
+                traj = planner.path()
 
             # Lower the resolution down to horizon
             if traj.shape[0] > 2 * self.horizon:
@@ -297,6 +305,7 @@ class S2(ManifoldEnv):
         # See https://stackoverflow.com/questions/52210911/great-circle-distance-between-two-p-x-y-z-points-on-a-unit-sphere#:~:text=the%20distance%20on%20the%20great,%3D%202*phi*R%20.
         # Given a b sequences of t spherical coordinates (b x t x 3 Tensor)
         # Return geodesic distance of the trajectory (b Tensor)
+        x = x.double()
         from_ = x[:, :-1, :]
         to = x[:, 1:, :]
         chordal_dist = torch.linalg.norm(to - from_, dim=-1)

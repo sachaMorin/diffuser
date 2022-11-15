@@ -207,6 +207,8 @@ T2_v1 = {
         'horizon': 12,
         'n_diffusion_steps': 20,
         'dim_mults': (1, 4, 8),
+        'normalizer': 'GaussianNormalizer',
+        'use_padding' : False,
         'projection': True,
         'mask_action': True,
         'seed': 42,
