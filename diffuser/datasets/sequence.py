@@ -84,6 +84,12 @@ class SequenceDataset(torch.utils.data.Dataset):
 
         observations = self.fields.normed_observations[path_ind, start:end]
         actions = self.fields.normed_actions[path_ind, start:end]
+        terminals = self.fields.terminals[path_ind, start:end]
+
+        # Pad trajectories with last observations
+        if terminals.any():
+            end = terminals.astype(int).argmax()
+            observations[end:] = observations[end]
 
         conditions = self.get_conditions(observations)
         trajectories = np.concatenate([actions, observations], axis=-1)
