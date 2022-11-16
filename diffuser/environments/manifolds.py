@@ -172,6 +172,7 @@ class ManifoldEnv(gym.Env):
         ax.margins(0)
         ax.set_yticklabels([])
         ax.set_xticklabels([])
+        ax.set_zticklabels([])
 
         # ax.plot3D(*x.T, 'magma', c=np.arange(x.shape[0]), linewidth=2)
 
@@ -228,6 +229,7 @@ class T2(ManifoldEnv):
         return emb
 
     def sample(self, n_samples):
+        # Update this with uniform sampling over the 4D space
         result = []
         n = 0
 
