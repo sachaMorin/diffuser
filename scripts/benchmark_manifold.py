@@ -24,12 +24,11 @@ class Parser(utils.Parser):
     dataset: str = 'S2-v1'
     config: str = 'config.locomotion'
 
-
 args = Parser().parse_args('plan')
 
 dfs = []
 
-for proj, seed in itertools.product([None, True], [1, 11, 111]):
+for proj, seed in itertools.product([None, True], [1, 12, 123]):
     args.diffusion_loadpath = f'diffusion/defaults_H12_T20_P{proj}_S{seed}'
 
     # -----------------------------------------------------------------------------#
@@ -145,4 +144,4 @@ for c in ['expert', 'diffuser', 'shortest']:
     # Some pred
     df[c] = df[c].clip(lower=1.00)
 
-df.to_csv(os.path.join("logs", "results.csv"))
+df.to_csv(os.path.join("logs", f"results_{args.dataset}.csv"))

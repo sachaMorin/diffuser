@@ -18,7 +18,7 @@ from diffuser.utils.colab import run_diffusion, show_diffusion
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'S2-v1'
+    dataset: str = 'T2-v1'
     config: str = 'config.locomotion'
 
 args = Parser().parse_args('plan')
@@ -62,7 +62,7 @@ mid = np.sqrt(2)/2
 # Visualize the denoising process
 # Torus
 if args.dataset == 'T2-v1':
-    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, -1.0, 1.0, 0.0])}
+    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, np.pi/2, 1.0, 0.0])}
 elif args.dataset == 'S2-v1':
     cond = {0: torch.tensor([1.0, 0.0, 0.0]), -1: torch.tensor([0.0, -1.0, 0.0])}
 else:
