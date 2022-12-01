@@ -161,9 +161,10 @@ class ManifoldEnv(gym.Env):
         fig, ax = triu_plot(self.intrinsic_to_3D(mesh), mesh)
 
         # Plot trajectory
-        traj = self.embedding_to_3D(traj)
+        _, traj = self.projection(None, traj)
         traj = self.expand_traj(traj)
         _, traj = self.projection(None, traj)
+        traj = self.embedding_to_3D(traj)
         surface_plot(traj, fig=fig, ax=ax)
         ax.scatter(*traj[0], c='#0D0887', s=100, linewidths=1, edgecolors='k')
         ax.scatter(*traj[-1], c='#F0F921', s=100, linewidths=1, edgecolors='k')
@@ -229,26 +230,9 @@ class T2(ManifoldEnv):
         return emb
 
     def sample(self, n_samples):
-        # Update this with uniform sampling over the 4D space
-        result = []
-        n = 0
-
-        # Rejection sampling to achieve uniform sampling on the Torus
-        while n < n_samples:
-            phi, theta, w = self.rng.uniform(size=(3, 1000))
-            phi *= 2 * np.pi
-            theta *= 2 * np.pi
-
-            c = self.R + self.r * np.cos(theta)
-
-            # Rejection sampling
-            accepted = w < c / (self.R + self.r)
-            n += accepted.sum()
-            result.append(np.stack([theta, phi]).T)
-
-        angles = np.concatenate(result)[:n_samples]
-
-        return self.intrisic_to_embedding(angles)
+        data = self.rng.normal(size=(1, n_samples, 4))
+        _, data = self.projection(None, data)
+        return data[0]
 
     def get_intrisic_mesh(self):
         u = np.linspace(0, 2.0 * np.pi, endpoint=True, num=50)
@@ -258,14 +242,49 @@ class T2(ManifoldEnv):
         angles = np.stack([theta, phi]).T
         return angles
 
-    # def projection(self, actions, obs):
-    #     b, t, d = obs.shape
-    #     obs = obs.reshape((b, t, 2, d//2))
-    #     # Ignore perfect 0s, they usually indicate padding
-    #     not_zero = ~(obs == 0).all(dim=-1)
-    #
-    #     obs[not_zero] /= torch.linalg.norm(obs[not_zero], dim=-1, keepdim=True)
-    #     obs = obs.reshape((b, t, d))
+    def projection(self, actions, obs):
+        is_2D = obs.ndim == 2
+        if is_2D:
+            t, d = obs.shape
+            obs = obs.reshape((1, t, d))
+        b, t, d = obs.shape
+        obs = obs.reshape((b, t, 2, d//2))
+        if torch.is_tensor(obs):
+            norm = torch.linalg.norm(obs, dim=-1, keepdim=True)
+        else:
+            norm = np.linalg.norm(obs, axis=-1, keepdims=True)
+
+        # Ignore perfect 0s, they usually indicate padding
+        norm[norm == 0.0] = 1.0
+
+        obs /= norm
+
+        obs = obs.reshape((b, t, d))
+
+        if is_2D:
+            obs = obs[0]
+        return actions, obs
+
+    def seq_geodesic_distance(self, x):
+        # See https://stackoverflow.com/questions/52210911/great-circle-distance-between-two-p-x-y-z-points-on-a-unit-sphere#:~:text=the%20distance%20on%20the%20great,%3D%202*phi*R%20.
+        # Given a b sequences of t 2-polar coordinates (b x t x 4 Tensor)
+        # Return geodesic distance of the trajectory (b Tensor)
+        x = x.double()
+        b, t, d = x.shape
+        x = x.reshape((b, t, 2, d//2))
+        from_ = x[:, :-1, :]
+        to = x[:, 1:, :]
+
+        # Compute angles (geodesics) on the two circles
+        # Both angles form a "right-angled" triangle
+        chordal_dist = torch.linalg.norm(to - from_, dim=-1)
+        half_angle = torch.arcsin(chordal_dist / 2)
+        angle = 2 * half_angle
+
+        # Find the hypotenuse of the triangle
+        dist = torch.linalg.norm(angle, dim=-1)
+
+        return dist.sum(dim=-1)
 
 
 class S2(ManifoldEnv):
