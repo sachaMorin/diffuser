@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.tri as mtri
 
 from sklearn.neighbors import kneighbors_graph
-from scipy.sparse.csgraph import shortest_path
+from scipy.sparse.csgraph import shortest_path, connected_components
 
 
 def set_axes_equal(ax):
@@ -96,10 +96,15 @@ class ManifoldPlanner:
 
     def compute_paths(self):
         self.graph = kneighbors_graph(self.samples, n_neighbors=10, mode='distance')
+        # Check if graph is connected
+        n = connected_components(self.graph, return_labels=False)
+        if n != 1:
+            raise Exception(f"Graph is not connected. Has {n} components.")
+
         self.dist, self.predecessors = shortest_path(self.graph, return_predecessors=True, directed=False)
 
     def nearest_neighor(self, point):
-        """Return the index of the nearest neigbor of point in self.samples."""
+        """Return the index of the nearest neighbor of point in self.samples."""
         dist = np.linalg.norm(self.samples - point.reshape((1, -1)), axis=1)
         return dist.argmin()
 
