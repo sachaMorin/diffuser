@@ -95,7 +95,7 @@ class SO3(ManifoldEnv):
         return actions, obs_prime
 
     def seq_geodesic_distance(self, R):
-        # Given b sequences of of t rotations  (b x t x 9 Tensor)
+        # Given b sequences of t rotations  (b x t x 9 Tensor)
         # Return geodesic distance of the trajectory (b Tensor)
         # See On the Continuity of Rotation Representations in Neural Networks, p.7
         R = self.to_full_matrix(R)
@@ -104,7 +104,13 @@ class SO3(ManifoldEnv):
 
         M = from_ @ torch.inverse(to)
         traces = torch.einsum("ijkk->ij", M)
-        dist = torch.arccos((traces - 1) / 2)
+        cos = (traces - 1) / 2
+
+        # cos may be lower than -1 or higher than 1 due to numerical issues
+        # clip to appropriate range to avoid nans in arccos output
+        cos = torch.clip(cos, min=-1., max=1.)
+
+        dist = torch.arccos(cos)
 
         return dist.sum(dim=1)
 
@@ -164,7 +170,7 @@ if __name__ == '__main__':
     # your code
     import matplotlib.pyplot as plt
 
-    env = SO3(seed=42, n_samples_planner=20000)
+    env = SO3(seed=42, n_samples_planner=5000)
     dataset = env.get_dataset(100)
 
     # Render some planner trajectories
@@ -185,6 +191,6 @@ if __name__ == '__main__':
     obs = torch.randn((1000, 12, 6))
     _, obs = env.projection(None, obs)
     geo = env.seq_geodesic_distance(obs)
-    obs_direct = obs_t[:, [0, -1], :]
+    obs_direct = obs[:, [0, -1], :]
     geo_direct = env.seq_geodesic_distance(obs_direct)
     print((geo / geo_direct).mean())
