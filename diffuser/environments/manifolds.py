@@ -11,7 +11,7 @@ from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
 
 
 class ManifoldEnv(gym.Env):
-    def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12):
+    def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12, n_samples_planner=5000):
         self.name = None
         self.horizon = horizon
         self.random_state = seed
@@ -37,7 +37,7 @@ class ManifoldEnv(gym.Env):
         self.t = 0
 
         # Manifold planner
-        self.planner = self.get_planner(self.random_state)
+        self.planner = self.get_planner(self.random_state, n_samples=n_samples_planner)
 
     def seed(self, seed=None):
         super().seed(seed)
@@ -47,8 +47,8 @@ class ManifoldEnv(gym.Env):
         self.random_state = seed
         self.planner = self.get_planner(self.random_state)
 
-    def get_planner(self, random_state):
-        return ManifoldPlanner(self, random_seed=random_state)
+    def get_planner(self, random_state, n_samples):
+        return ManifoldPlanner(self, random_seed=random_state, n_samples=n_samples)
 
     def random_step(self):
         action = self.action_space.sample()
