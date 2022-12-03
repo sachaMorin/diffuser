@@ -7,7 +7,7 @@ import einops
 from diffuser.environments.manifolds import ManifoldEnv
 from .manifolds import S2
 
-from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
+from diffuser.environments.utils import surface_plot, triu_plot, SO3InterpolationPlanner
 
 
 class SO3(ManifoldEnv):
@@ -30,6 +30,9 @@ class SO3(ManifoldEnv):
 
         self.name = 'SO(3)'
         self.observation_dim = 6
+
+    def get_planner(self, random_state, n_samples=5000):
+        return SO3InterpolationPlanner(self, random_seed=random_state)
 
     def _update_state_intrinsic(self, action):
         # Shouldn't be needed
@@ -149,7 +152,7 @@ class SO3(ManifoldEnv):
         shape_rot = observations @ shape.T
         shape_rot = np.transpose(shape_rot, (0, 2, 1)).reshape((-1, 3))
         c = np.repeat(np.arange(observations.shape[0]), n_points)
-        rot = Rotation.from_euler("zx", [0, 0], degrees=True).as_matrix()
+        rot = Rotation.from_euler("zx", [25, 0], degrees=True).as_matrix()
         shape_rot = shape_rot @ rot.T
         fig, ax = surface_plot(shape_rot, fig=fig, ax=ax, c=c, cmap='rainbow')
 
@@ -188,23 +191,23 @@ if __name__ == '__main__':
     dataset = env.get_dataset(100)
 
     # Render some planner trajectories
-    for i in range(1):
+    for i in range(10):
         im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i+1) * 12]))
         plt.imshow(im)
         plt.show()
 
-    # # Score planner trajectories
-    # obs = dataset['observations'].reshape((100, 12, 6))
-    # obs_t = torch.from_numpy(obs)
-    # geo = env.seq_geodesic_distance(obs_t)
-    # obs_direct = obs_t[:, [0, -1], :]
-    # geo_direct = env.seq_geodesic_distance(obs_direct)
-    # print((geo / geo_direct).mean())
-    #
-    # # Score random trajectories
-    # obs = torch.randn((1000, 12, 6))
-    # _, obs = env.projection(None, obs)
-    # geo = env.seq_geodesic_distance(obs)
-    # obs_direct = obs[:, [0, -1], :]
-    # geo_direct = env.seq_geodesic_distance(obs_direct)
-    # print((geo / geo_direct).mean())
+    # Score planner trajectories
+    obs = dataset['observations'].reshape((100, 12, 6))
+    obs_t = torch.from_numpy(obs)
+    geo = env.seq_geodesic_distance(obs_t)
+    obs_direct = obs_t[:, [0, -1], :]
+    geo_direct = env.seq_geodesic_distance(obs_direct)
+    print((geo / geo_direct).mean())
+
+    # Score random trajectories
+    obs = torch.randn((1000, 12, 6))
+    _, obs = env.projection(None, obs)
+    geo = env.seq_geodesic_distance(obs)
+    obs_direct = obs[:, [0, -1], :]
+    geo_direct = env.seq_geodesic_distance(obs_direct)
+    print((geo / geo_direct).mean())
