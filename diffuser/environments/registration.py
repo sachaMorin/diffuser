@@ -33,6 +33,10 @@ ENVIRONMENT_SPECS = (
         'id': 'SO3-v1',
         'entry_point': ('diffuser.environments.so3:SO3'),
     },
+    {
+        'id': 'SO3GS-v1',
+        'entry_point': ('diffuser.environments.so3:SO3'),
+    },
 )
 
 def register_environments():

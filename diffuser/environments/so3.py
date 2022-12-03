@@ -40,7 +40,8 @@ class SO3(ManifoldEnv):
 
     def sample(self, n_samples):
         # Only keep first 2 columns (R^6 embedding)
-        samples = np.stack([Rotation.random().as_matrix()[:, :2] for _ in range(n_samples)], axis=0).reshape((n_samples, -1))
+        samples = np.stack([Rotation.random().as_matrix()[:, :2] for _ in range(n_samples)], axis=0).reshape(
+            (n_samples, -1))
 
         return samples
 
@@ -77,7 +78,7 @@ class SO3(ManifoldEnv):
         """Project ambient R^6 prediction to SO(3) manifolds.
 
         Operates on R^6 rotation embedding (first two columns).
-        Works on trajectories or batch of trajectories."""
+        Works on trajectories."""
         # obs, ps = einops.pack([obs], "* t m")  # Auto-batching
 
         # Matrix format
@@ -136,7 +137,7 @@ class SO3(ManifoldEnv):
         handle_1 = np.linspace([.1, .0, 0.], [.075, .025, 0.], endpoint=True, num=100)
         handle_2 = np.linspace([.1, 0., 0.], [.075, -.025, 0.], endpoint=True, num=100)
         shape = np.concatenate((shape, handle_1, handle_2), axis=0)
-        shape *= 2   # Bigger arrow
+        shape *= 2  # Bigger arrow
         shape += np.array([[0., 0., 1.]])  # Put arrow in tangent space of unit sphere
         n_points = shape.shape[0]
 
@@ -171,6 +172,45 @@ class SO3(ManifoldEnv):
         return im
 
 
+class SO3GS(SO3):
+    """Use Gram–Schmidt projection instead of SVD."""
+
+    def projection(self, actions, obs):
+        """Project ambient R^6 prediction to SO(3) manifolds.
+
+        Operates on R^6 rotation embedding (first two columns).
+        Works on batch of trajectories."""
+        # obs, ps = einops.pack([obs], "* t m")  # Auto-batching
+
+        # Matrix format
+        obs = einops.rearrange(obs, "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
+
+        # Unit norm first vector
+        norm_u1 = torch.linalg.norm(obs[..., 0], dim=-1, keepdims=True)
+        obs[..., 0] /= norm_u1
+
+        # Orthogonalize second vector
+        dot_u1_u2 = (obs[..., 0].unsqueeze(-2) @ obs[..., 1].unsqueeze(-1)).squeeze(-1)
+        obs[..., 1] = obs[..., 1] - dot_u1_u2 * obs[..., 0]
+
+        # Unit norm second vector
+        norm_u2 = torch.linalg.norm(obs[..., 1], dim=-1, keepdims=True)
+        obs[..., 1] /= norm_u2
+
+        # Flat format
+        obs = einops.rearrange(obs, "n t m1 m2 -> n t (m1 m2)", m1=3, m2=2)
+
+        # Sanity check (comment this for performance)
+        # mx = self.to_full_matrix(obs)
+        # det = mx.det()
+        # if not torch.allclose(torch.ones_like(det), det):
+        #     raise Exception('We have weird determinants')
+
+        # [obs_prime] = einops.unpack(obs_prime, ps, "* t m")  # Auto-batching
+
+        return actions, obs
+
+
 if __name__ == '__main__':
     # import matplotlib.pyplot as plt
     # env = SO3(seed=42)
@@ -187,14 +227,14 @@ if __name__ == '__main__':
     # your code
     import matplotlib.pyplot as plt
 
-    env = SO3(seed=42, n_samples_planner=5000)
+    env = SO3GS(seed=42, n_samples_planner=5000)
     dataset = env.get_dataset(100)
 
     # Render some planner trajectories
-    for i in range(10):
-        im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i+1) * 12]))
-        plt.imshow(im)
-        plt.show()
+    # for i in range(10):
+    #     im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
+    #     plt.imshow(im)
+    #     plt.show()
 
     # Score planner trajectories
     obs = dataset['observations'].reshape((100, 12, 6))

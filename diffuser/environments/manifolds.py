@@ -102,7 +102,7 @@ class ManifoldEnv(gym.Env):
         """Return sampled embeddings."""
         raise NotImplementedError()
 
-    def get_dataset(self, n_samples=1000):
+    def get_dataset(self, n_samples=2000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
         for i in range(n_samples):
             traj = []

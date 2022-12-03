@@ -224,3 +224,6 @@ S2_v1['plan'] = copy.deepcopy(S2_v1['diffusion'])
 SO3_v1 = copy.deepcopy(T2_v1)
 SO3_v1['plan'] = copy.deepcopy(SO3_v1['diffusion'])
 
+SO3GS_v1 = copy.deepcopy(T2_v1)
+SO3GS_v1['plan'] = copy.deepcopy(SO3GS_v1['diffusion'])
+
