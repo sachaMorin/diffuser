@@ -201,6 +201,8 @@ T2_v1 = {
     'diffusion' : {
         'n_train_steps': 10000,
         'save_freq': 2000,
+        # 'n_train_steps': 1000,
+        # 'save_freq': 200,
         'n_steps_per_epoch': 100,
         'renderer': 'utils.GeometricRenderer',
         'loader': 'datasets.GoalDataset',
@@ -217,6 +219,8 @@ T2_v1 = {
 T2_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
 
 S2_v1 = copy.deepcopy(T2_v1)
-S2_v1['diffusion']['projection'] = "spherical"
 S2_v1['plan'] = copy.deepcopy(S2_v1['diffusion'])
+
+SO3_v1 = copy.deepcopy(T2_v1)
+SO3_v1['plan'] = copy.deepcopy(SO3_v1['diffusion'])
 

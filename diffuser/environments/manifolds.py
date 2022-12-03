@@ -47,7 +47,7 @@ class ManifoldEnv(gym.Env):
         self.random_state = seed
         self.planner = self.get_planner(self.random_state)
 
-    def get_planner(self, random_state, n_samples):
+    def get_planner(self, random_state, n_samples=5000):
         return ManifoldPlanner(self, random_seed=random_state, n_samples=n_samples)
 
     def random_step(self):

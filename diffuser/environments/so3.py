@@ -1,10 +1,11 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
 
 import einops
 from diffuser.environments.manifolds import ManifoldEnv
-from manifolds import S2
+from .manifolds import S2
 
 from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
 
@@ -28,6 +29,7 @@ class SO3(ManifoldEnv):
                          **kwargs)
 
         self.name = 'SO(3)'
+        self.observation_dim = 6
 
     def _update_state_intrinsic(self, action):
         # Shouldn't be needed
@@ -49,6 +51,9 @@ class SO3(ManifoldEnv):
         """Cross product to predict the third column of an R^6 rotation prediction.
 
         Return the reshaped matrix."""
+        if isinstance(R, np.ndarray):
+            R = torch.from_numpy(R)
+
         # Auto-batching
         single_traj = R.ndim == 2
         if single_traj:
@@ -70,7 +75,7 @@ class SO3(ManifoldEnv):
 
         Operates on R^6 rotation embedding (first two columns).
         Works on trajectories or batch of trajectories."""
-        obs, ps = einops.pack([obs], "* t m")  # Auto-batching
+        # obs, ps = einops.pack([obs], "* t m")  # Auto-batching
 
         # Matrix format
         obs = einops.rearrange(obs, "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
@@ -85,12 +90,12 @@ class SO3(ManifoldEnv):
         obs_prime = einops.rearrange(obs_prime, "n t m1 m2 -> n t (m1 m2)", m1=3, m2=2)
 
         # Sanity check (comment this for performance)
-        mx = self.to_full_matrix(obs_prime)
-        det = mx.det()
-        if not torch.allclose(torch.ones_like(det), det):
-            raise Exception('We have weird determinants')
+        # mx = self.to_full_matrix(obs_prime)
+        # det = mx.det()
+        # if not torch.allclose(torch.ones_like(det), det):
+        #     raise Exception('We have weird determinants')
 
-        [obs_prime] = einops.unpack(obs_prime, ps, "* t m")  # Auto-batching
+        # [obs_prime] = einops.unpack(obs_prime, ps, "* t m")  # Auto-batching
 
         return actions, obs_prime
 
@@ -132,11 +137,20 @@ class SO3(ManifoldEnv):
         shape += np.array([[0., 0., 1.]])  # Put arrow in tangent space of unit sphere
         n_points = shape.shape[0]
 
+        # Rotate arrow
+        # rot = Rotation.from_euler("zx", [180, 15], degrees=True).as_matrix()
+        # # shape = shape @ rot.T
+        # # print(np.eye(3)[:, :2].reshape((6,)))
+        # print(rot[:, :2].reshape((6,)))
+
         # Apply rotations to arrow
         observations = self.to_full_matrix(observations)
+        # observations = torch.stack([torch.eye(3) for _ in range(observations.shape[0])], dim=0)  # To visualize untransformed arrow
         shape_rot = observations @ shape.T
         shape_rot = np.transpose(shape_rot, (0, 2, 1)).reshape((-1, 3))
         c = np.repeat(np.arange(observations.shape[0]), n_points)
+        rot = Rotation.from_euler("zx", [0, 0], degrees=True).as_matrix()
+        shape_rot = shape_rot @ rot.T
         fig, ax = surface_plot(shape_rot, fig=fig, ax=ax, c=c, cmap='rainbow')
 
         # Remove border
@@ -174,23 +188,23 @@ if __name__ == '__main__':
     dataset = env.get_dataset(100)
 
     # Render some planner trajectories
-    # for i in range(10):
-    #     im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i+1) * 12]))
-    #     plt.imshow(im)
-    #     plt.show()
+    for i in range(1):
+        im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i+1) * 12]))
+        plt.imshow(im)
+        plt.show()
 
-    # Score planner trajectories
-    obs = dataset['observations'].reshape((100, 12, 6))
-    obs_t = torch.from_numpy(obs)
-    geo = env.seq_geodesic_distance(obs_t)
-    obs_direct = obs_t[:, [0, -1], :]
-    geo_direct = env.seq_geodesic_distance(obs_direct)
-    print((geo / geo_direct).mean())
-
-    # Score random trajectories
-    obs = torch.randn((1000, 12, 6))
-    _, obs = env.projection(None, obs)
-    geo = env.seq_geodesic_distance(obs)
-    obs_direct = obs[:, [0, -1], :]
-    geo_direct = env.seq_geodesic_distance(obs_direct)
-    print((geo / geo_direct).mean())
+    # # Score planner trajectories
+    # obs = dataset['observations'].reshape((100, 12, 6))
+    # obs_t = torch.from_numpy(obs)
+    # geo = env.seq_geodesic_distance(obs_t)
+    # obs_direct = obs_t[:, [0, -1], :]
+    # geo_direct = env.seq_geodesic_distance(obs_direct)
+    # print((geo / geo_direct).mean())
+    #
+    # # Score random trajectories
+    # obs = torch.randn((1000, 12, 6))
+    # _, obs = env.projection(None, obs)
+    # geo = env.seq_geodesic_distance(obs)
+    # obs_direct = obs[:, [0, -1], :]
+    # geo_direct = env.seq_geodesic_distance(obs_direct)
+    # print((geo / geo_direct).mean())
