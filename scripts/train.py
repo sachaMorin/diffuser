@@ -72,7 +72,8 @@ diffusion_config = utils.Config(
     loss_discount=args.loss_discount,
     device=args.device,
     normalizer=dataset.normalizer,
-    projection=dataset.env.projection if args.projection else None,
+    projection_operator=dataset.env.projection,
+    manifold_diffuser_mode=args.manifold_diffuser_mode,
     mask_action=args.mask_action
 )
 

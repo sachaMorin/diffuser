@@ -42,18 +42,51 @@ def make_timesteps(batch_size, i, device):
 class GaussianDiffusion(nn.Module):
     def __init__(self, model, horizon, observation_dim, action_dim, n_timesteps=1000,
                  loss_type='l1', clip_denoised=False, predict_epsilon=True,
-                 action_weight=1.0, loss_discount=1.0, loss_weights=None, projection=None, normalizer=None,
-                 mask_action=False):
+                 action_weight=1.0, loss_discount=1.0, loss_weights=None, normalizer=None,
+                 mask_action=False, projection_operator=None, manifold_diffuser_mode="no_projection"):
         super().__init__()
         self.horizon = horizon
         self.observation_dim = observation_dim
         self.action_dim = action_dim
         self.transition_dim = observation_dim + action_dim
         self.model = model
-        self.projection = projection
         self.normalizer = normalizer
+
+        # Map actions to 0
+        # Useful to only optimize trajectories and ignore actions
         self.mask_action = mask_action
 
+        # Manifold Projection Settings
+        self.manifold_diffuser_mode = manifold_diffuser_mode
+        self.projection_operator = projection_operator
+        if manifold_diffuser_mode == "start":
+            # Only apply manifold projection to reconstructions of x_0
+            # Diffusion is otherwise standard
+            self.project_x_0 = True
+            self.project_x_t = False
+            self.project_diffusion = False
+        elif manifold_diffuser_mode == "start_and_noise":
+            # Apply manifold projection to reconstructions of x_0
+            # Apply manifold projection to x_t after free diffusion in Euclidean space
+            self.project_x_0 = True
+            self.project_x_t = True
+            self.project_diffusion = False
+        elif manifold_diffuser_mode == "full":
+            # Apply manifold projection throughout the diffusion process
+            # This will interleave noise injection and projections
+            # Can be quite slow if projections are costly
+            self.project_x_0 = True
+            self.project_x_t = True
+            self.project_diffusion = True
+        elif manifold_diffuser_mode == "no_projection":
+            # No projection. This is standard diffuser
+            self.project_x_0 = False
+            self.project_x_t = False
+            self.project_diffusion = False
+        else:
+            raise ValueError("Invalid value for manifold_diffuser_mode.")
+
+        # Coefficients
         betas = cosine_beta_schedule(n_timesteps)
         alphas = 1. - betas
         alphas_cumprod = torch.cumprod(alphas, axis=0)
@@ -150,6 +183,7 @@ class GaussianDiffusion(nn.Module):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def p_mean_variance(self, x, cond, t):
+        # x_0
         x_recon = self.predict_start_from_noise(x, t=t, noise=self.model(x, cond, t))
 
         if self.clip_denoised:
@@ -157,6 +191,7 @@ class GaussianDiffusion(nn.Module):
         else:
             assert RuntimeError()
 
+        # x_{t-1}
         model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
             x_start=x_recon, x_t=x, t=t)
         return model_mean, posterior_variance, posterior_log_variance
@@ -170,7 +205,8 @@ class GaussianDiffusion(nn.Module):
         x = torch.randn(shape, device=device)
 
         # Projection onto the manifold during denoising process
-        x = self.project(x)
+        if self.project_diffusion or self.project_x_t:
+            x = self.projection(x)
 
         x = apply_conditioning(x, cond, self.action_dim)
 
@@ -182,7 +218,10 @@ class GaussianDiffusion(nn.Module):
             x, values = sample_fn(self, x, cond, t, **sample_kwargs)
 
             # Projection onto the manifold during denoising process
-            x = self.project(x)
+            if self.project_diffusion or self.project_x_t:
+                x = self.projection(x)
+            if self.mask_action:
+                x[:, :, :self.action_dim] = 0.0
 
             x = apply_conditioning(x, cond, self.action_dim)
 
@@ -190,6 +229,11 @@ class GaussianDiffusion(nn.Module):
             progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
             if return_chain: chain.append(x)
 
+        if self.project_x_0 and not self.project_diffusion:
+            # If project_diffusion, x is already on the manifold
+            x = self.projection(x)
+
+        x = apply_conditioning(x, cond, self.action_dim)
         progress.stamp()
 
         # x, values = sort_by_values(x, values)
@@ -215,68 +259,61 @@ class GaussianDiffusion(nn.Module):
         if noise is None:
             noise = torch.randn_like(x_start)
 
-        # ORIGINAL DIFFUSION WITH JUMP GAUSSIANS
-        # sample = (
-        #     extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
-        #     extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
-        # )
+        if not self.project_diffusion and not return_chain:
+            # Original Diffusion with jump gaussians
+            sample = (
+                extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
+                extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+            )
+            if self.mask_action:
+                sample[:, :, :self.action_dim] = 0.0
 
-        # NAIVE SLOW DIFFUSION + PROJECTION
-        # Loop over batch and timestep
-        # Iterate over batch
-        # sample = x_start.clone()
-        #
-        # for i, t_i in enumerate(t):
-        #     # Buffer to save the chain
-        #     if return_chain:
-        #         chain = [sample[i].clone()]
-        #
-        #     # Iterate over diffusion steps
-        #     for j in range(t_i):
-        #         # Add noise
-        #         noise = torch.randn_like(sample[i])
-        #         sample[i] = self.sqrt_alphas[j] * sample[i] + self.sqrt_one_minus_alphas[j] * noise
-        #
-        #         # Project to manifold
-        #         sample[i] = self.project(sample[i].unsqueeze(0))[0]
-        #
-        #         # Save chain
-        #         if return_chain:
-        #             chain.append(sample[i].clone())
+            # Project noisy sample on manifold
+            if self.project_x_t:
+                sample = self.projection(sample)
+        else:
+            # Iterative Diffusion
+            # If we return chain, we still use iterative diffusion. Useful for visualization
+            sample = x_start
 
-        # BETTER DIFFUSION + PROJECTION
-        # Only loop over timestep
-        # Attempt to make it faster
-        sample = x_start
-
-        if return_chain:
-            chain = [sample]
-
-        # Iterate over diffusion steps
-        for t_i in range(t.max().item()):
-            # Mask alphas where diffusion is done
-            diffusion_is_done = t_i > t
-            sqrt_alphas = self.sqrt_alphas[t_i] * torch.ones_like(t)
-            sqrt_alphas[diffusion_is_done] = 1. # Multiplication Identity
-            sqrt_one_minus_alphas = self.sqrt_one_minus_alphas[t_i] * torch.ones_like(t)
-            sqrt_one_minus_alphas[diffusion_is_done] = 0. # Addition Identity
-
-            # Reshape coefficients for proper broadcast
-            sqrt_alphas = sqrt_alphas.reshape((-1, 1, 1))
-            sqrt_one_minus_alphas = sqrt_one_minus_alphas.reshape((-1, 1, 1))
-
-            # Add noise
-            noise = torch.randn_like(sample)
-            sample = sqrt_alphas * sample + sqrt_one_minus_alphas * noise
-
-            # Project to manifold
-            sample = self.project(sample)
-
-            # Save chain
             if return_chain:
-                chain.append(sample.clone())
+                chain = [sample]
 
-        sample = sample if not return_chain else torch.cat(chain)
+            # Iterate over diffusion steps
+            for t_i in range(t.max().item()):
+                # Mask alphas where diffusion is done
+                diffusion_is_done = t_i > t
+                sqrt_alphas = self.sqrt_alphas[t_i] * torch.ones_like(t)
+                sqrt_alphas[diffusion_is_done] = 1. # Multiplication Identity
+                sqrt_one_minus_alphas = self.sqrt_one_minus_alphas[t_i] * torch.ones_like(t)
+                sqrt_one_minus_alphas[diffusion_is_done] = 0. # Addition Identity
+
+                # Reshape coefficients for proper broadcast
+                sqrt_alphas = sqrt_alphas.reshape((-1, 1, 1))
+                sqrt_one_minus_alphas = sqrt_one_minus_alphas.reshape((-1, 1, 1))
+
+                # Add noise
+                noise = torch.randn_like(sample)
+                sample = sqrt_alphas * sample + sqrt_one_minus_alphas * noise
+
+                # Project to manifold during diffusion
+                if self.project_diffusion:
+                    sample = self.projection(sample)
+                if self.mask_action:
+                    sample[:, :, :self.action_dim] = 0.0
+
+                # Save chain
+                if return_chain:
+                    chain.append(sample.clone())
+
+            if self.project_x_t and not self.project_diffusion:
+                # If self.project_diffusion, x_t is already on the manifold
+                sample = self.projection(sample)
+                if return_chain:
+                    chain[-1] = self.projection(chain[-1])
+
+            if return_chain:
+                sample = torch.cat(chain)
 
         return sample
 
@@ -289,10 +326,17 @@ class GaussianDiffusion(nn.Module):
         x_recon = self.model(x_noisy, cond, t)
         x_recon = apply_conditioning(x_recon, cond, self.action_dim)
 
+        if self.project_x_0:
+            x_recon = self.projection(x_recon)
+
+        if self.mask_action:
+            x_recon[:, :, :self.action_dim] = 0.0
+
         assert noise.shape == x_recon.shape
 
         if self.predict_epsilon:
             loss, info = self.loss_fn(x_recon, noise)
+            raise NotImplementedError("Current manifold implementation does not account for epsilon. Do not use.")
         else:
             loss, info = self.loss_fn(x_recon, x_start)
 
@@ -306,29 +350,28 @@ class GaussianDiffusion(nn.Module):
     def forward(self, cond, *args, **kwargs):
         return self.conditional_sample(cond, *args, **kwargs)
 
-    def project(self, x):
-        if self.projection is not None:
-            # Unormalize state
-            obs = x[:, :, self.action_dim:]
-            obs = self.normalizer.unnormalize(obs, "observations")
+    def projection(self, x):
+        if self.manifold_diffuser_mode == "no_projection":
+            raise Exception("self.manifold_diffuser_mode is set to no_projection. I should not be called.")
 
-            # Unormalize actions
-            actions = x[:, :, :self.action_dim]
-            actions = self.normalizer.unnormalize(actions, "actions")
+        # Unormalize state
+        obs = x[:, :, self.action_dim:]
+        obs = self.normalizer.unnormalize(obs, "observations")
 
-            # Manifold projection
-            actions, obs = self.projection(actions, obs)
+        # Unormalize actions
+        actions = x[:, :, :self.action_dim]
+        actions = self.normalizer.unnormalize(actions, "actions")
 
-            # Renormalize state
-            obs = self.normalizer.normalize(obs, "observations")
-            x[:, :, self.action_dim:] = obs
+        # Manifold projection
+        actions, obs = self.projection_operator(actions, obs)
 
-            # Renormalize actions
-            actions = self.normalizer.normalize(actions, "actions")
-            x[:, :, :self.action_dim] = actions
+        # Renormalize state
+        obs = self.normalizer.normalize(obs, "observations")
+        x[:, :, self.action_dim:] = obs
 
-        if self.mask_action:
-            x[:, :, :self.action_dim] = 0.0
+        # Renormalize actions
+        actions = self.normalizer.normalize(actions, "actions")
+        x[:, :, :self.action_dim] = actions
 
         return x
 

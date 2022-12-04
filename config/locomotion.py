@@ -12,7 +12,7 @@ args_to_watch = [
     ('prefix', ''),
     ('horizon', 'H'),
     ('n_diffusion_steps', 'T'),
-    ('projection', 'P'),
+    ('manifold_diffuser_mode', 'P'),
     ('seed', 'S'),
     ## value kwargs
     ('discount', 'd'),
@@ -34,7 +34,7 @@ base = {
         'dim_mults': (1, 2, 4, 8),
         'attention': False,
         'renderer': 'utils.MuJoCoRenderer',
-        'projection': None,
+        'manifold_diffuser_mode': "no_projection",
         'mask_action': False,
 
         ## dataset
@@ -142,8 +142,8 @@ base = {
         'discount': 0.997,
 
         ## loading
-        'diffusion_loadpath': 'f:diffusion/defaults_H{horizon}_T{n_diffusion_steps}_P{projection}_S{seed}',
-        'value_loadpath': 'f:values/defaults_H{horizon}_T{n_diffusion_steps}_d{discount}_P{projection}_S{seed}',
+        'diffusion_loadpath': 'f:diffusion/defaults_H{horizon}_T{n_diffusion_steps}_P{manifold_diffuser_mode}_S{seed}',
+        'value_loadpath': 'f:values/defaults_H{horizon}_T{n_diffusion_steps}_d{discount}_P{manifold_diffuser_mode}_S{seed}',
 
         'diffusion_epoch': 'latest',
         'value_epoch': 'latest',
@@ -211,7 +211,7 @@ T2_v1 = {
         'dim_mults': (1, 4, 8),
         'normalizer': 'GaussianNormalizer',
         'use_padding' : False,
-        'projection': True,
+        'manifold_diffuser_mode': "no_projection",
         'mask_action': True,
         'seed': 42,
     }
