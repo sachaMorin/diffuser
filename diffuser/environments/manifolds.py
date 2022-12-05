@@ -33,7 +33,7 @@ class ManifoldEnv(gym.Env):
         # Memory
         self.state_intrinsic = None
         self.state_embedding = None
-        self.goal_intrisic = None
+        self.goal_intrinsic = None
         self.goal_embedding = None
         self.state_buffer = []
         self._max_episode_steps = 100
@@ -63,7 +63,7 @@ class ManifoldEnv(gym.Env):
     def step(self, action):
         action = np.array(action)
         self._update_state_intrinsic(action)
-        self.state_embedding = self.intrisic_to_embedding(self.state_intrinsic)
+        self.state_embedding = self.intrinsic_to_embedding(self.state_intrinsic)
 
         terminated = self._terminal()
         reward = -1.0 if not terminated else 0.0
@@ -81,7 +81,7 @@ class ManifoldEnv(gym.Env):
     def _terminal(self):
         return np.linalg.norm(self.goal_embedding - self.state_embedding) < 1e-2 or self.t == self._max_episode_steps
 
-    def intrisic_to_embedding(self, intrinsic):
+    def intrinsic_to_embedding(self, intrinsic):
         raise NotImplementedError()
 
     def embedding_to_3D(self, embedding):
@@ -89,14 +89,14 @@ class ManifoldEnv(gym.Env):
         return embedding
 
     def intrinsic_to_3D(self, intrinsic):
-        return self.embedding_to_3D(self.intrisic_to_embedding(intrinsic))
+        return self.embedding_to_3D(self.intrinsic_to_embedding(intrinsic))
 
     def reset(self):
         self.t = 0
         self.state_intrinsic = self.observation_space.sample()
-        self.state_embedding = self.intrisic_to_embedding(self.state_intrinsic)
-        self.goal_intrisic = self.observation_space.sample()
-        self.goal_embedding = self.intrisic_to_embedding(self.goal_intrisic)
+        self.state_embedding = self.intrinsic_to_embedding(self.state_intrinsic)
+        self.goal_intrinsic = self.observation_space.sample()
+        self.goal_embedding = self.intrinsic_to_embedding(self.goal_intrinsic)
         self.state_buffer = [self.state_embedding]
 
         return self._get_obs()
@@ -144,7 +144,7 @@ class ManifoldEnv(gym.Env):
     def interpolate(self, start, goal):
         raise NotImplementedError()
 
-    def get_intrisic_mesh(self):
+    def get_intrinsic_mesh(self):
         raise NotImplementedError()
 
     def expand_traj(self, traj, steps=100):
@@ -165,7 +165,7 @@ class ManifoldEnv(gym.Env):
             traj = observations
 
         # Plot manifold mesh
-        mesh = self.get_intrisic_mesh()
+        mesh = self.get_intrinsic_mesh()
         fig, ax = triu_plot(self.intrinsic_to_3D(mesh), mesh)
 
         # Plot trajectory
@@ -206,8 +206,8 @@ class T2(ManifoldEnv):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, R=3, r=1, max_angle_degree=15, **kwargs):
-        self.R = R
-        self.r = r
+        self.R = R  # Only used for visualization
+        self.r = r  # Only used for visualization
         self.max_angle_radians = max_angle_degree * np.pi / 180
 
         # Boundaries
@@ -219,15 +219,25 @@ class T2(ManifoldEnv):
         super().__init__(low_obs=low_obs, high_obs=high_obs, low_action=low_action, high_action=high_action, **kwargs)
 
         self.name = 't2'
+        self.manifold = Torus(2)
 
     def _update_state_intrinsic(self, action):
         self.state_intrinsic = (self.state_intrinsic + action) % (2 * np.pi)
 
-    def intrisic_to_embedding(self, intrinsic):
+    def intrinsic_to_embedding(self, intrinsic):
+        # 2 angles to R^4
         emb = np.repeat(intrinsic, 2, axis=-1)
         emb[..., [0, 2]] = np.cos(emb[..., [0, 2]])
         emb[..., [1, 3]] = np.sin(emb[..., [1, 3]])
         return emb
+
+    def embedding_to_intrinsic(self, embedding):
+        # R^4 to 2 angles
+        angle_1 = np.arctan2(embedding[:, 1], embedding[:, 0])
+        angle_2 = np.arctan2(embedding[:, 3], embedding[:, 2])
+
+        # Map back to [0, 2pi]
+        return np.vstack((angle_1, angle_2)).T
 
     def embedding_to_3D(self, embedding):
         cos_phi, sin_phi, cos_theta, sin_theta = embedding.T
@@ -242,7 +252,7 @@ class T2(ManifoldEnv):
         _, data = self.projection(None, data)
         return data[0]
 
-    def get_intrisic_mesh(self):
+    def get_intrinsic_mesh(self):
         u = np.linspace(0, 2.0 * np.pi, endpoint=True, num=50)
         v = np.linspace(0, 2.0 * np.pi, endpoint=True, num=20)
         theta, phi = np.meshgrid(u, v)
@@ -251,24 +261,27 @@ class T2(ManifoldEnv):
         return angles
 
     def projection(self, actions, obs):
+        # Autobatch
         is_2D = obs.ndim == 2
         if is_2D:
             t, d = obs.shape
             obs = obs.reshape((1, t, d))
+
         b, t, d = obs.shape
-        obs = obs.reshape((b, t, 2, d//2))
+        obs = obs.reshape((b, t, 2, d // 2))
+
         if torch.is_tensor(obs):
-            norm = torch.linalg.norm(obs, dim=-1, keepdim=True)
+            # Torch
+            obs = torch.nn.functional.normalize(obs, p=2, dim=-1)
         else:
+            # Numpy 
             norm = np.linalg.norm(obs, axis=-1, keepdims=True)
-
-        # Ignore perfect 0s, they usually indicate padding
-        norm[norm == 0.0] = 1.0
-
-        obs /= norm
+            norm[norm == 0.0] = 1.0
+            obs /= norm
 
         obs = obs.reshape((b, t, d))
 
+        # Autobatch
         if is_2D:
             obs = obs[0]
         return actions, obs
@@ -279,20 +292,48 @@ class T2(ManifoldEnv):
         # Return geodesic distance of the trajectory (b Tensor)
         x = x.double()
         b, t, d = x.shape
-        x = x.reshape((b, t, 2, d//2))
+        x = self.embedding_to_intrinsic(x.reshape((b * t, d)).cpu().numpy()).reshape((b, t, 2))
         from_ = x[:, :-1, :]
         to = x[:, 1:, :]
+        result = torch.zeros(b)
 
-        # Compute angles (geodesics) on the two circles
-        # Both angles form a "right-angled" triangle
-        chordal_dist = torch.linalg.norm(to - from_, dim=-1)
-        half_angle = torch.arcsin(chordal_dist / 2)
-        angle = 2 * half_angle
+        for i in range(b):
+            for from_i, to_i in zip(from_[i], to[i]):
+                dist = self.manifold.distance(from_i, to_i)
+                result[i] += dist
+                # print(dist)
 
-        # Find the hypotenuse of the triangle
-        dist = torch.linalg.norm(angle, dim=-1)
+        return result
 
-        return dist.sum(dim=-1)
+
+
+        # Wrong implementation
+        # x = x.double()
+        # b, t, d = x.shape
+        # x = x.reshape((b, t, 2, d // 2))
+        # from_ = x[:, :-1, :]
+        # to = x[:, 1:, :]
+        #
+        # # Compute angles (geodesics) on the two circles
+        # # Both angles form a "right-angled" triangle
+        # chordal_dist = torch.linalg.norm(to - from_, dim=-1)
+        # half_angle = torch.arcsin(chordal_dist / 2)
+        # angle = 2 * half_angle
+        #
+        # # Find the hypotenuse of the triangle
+        # dist = torch.linalg.norm(angle, dim=-1)
+        #
+        # return dist.sum(dim=-1)
+
+    def interpolate(self, start, goal):
+        # if np.all(start == np.array([1, 0, 1, 0])):
+        #     import pdb; pdb.set_trace()
+        start, goal = self.embedding_to_intrinsic(np.vstack((start, goal)))
+
+        # Then use same logic as S2
+        angles = S2.interpolate(self, start, goal)
+
+        return self.intrinsic_to_embedding(angles)
 
 
 class S2(ManifoldEnv):
@@ -316,7 +357,7 @@ class S2(ManifoldEnv):
     def _update_state_intrinsic(self, action):
         self.state_intrinsic = (self.state_intrinsic + action) % self.high_obs
 
-    def intrisic_to_embedding(self, intrinsic):
+    def intrinsic_to_embedding(self, intrinsic):
         if intrinsic.ndim == 1:
             intrinsic = intrinsic.reshape((1, -1))
 
@@ -342,7 +383,7 @@ class S2(ManifoldEnv):
         samples /= np.linalg.norm(samples, axis=1, keepdims=True)
         return samples
 
-    def get_intrisic_mesh(self):
+    def get_intrinsic_mesh(self):
         u = np.linspace(0, 2.0 * np.pi, endpoint=True, num=50)
         v = np.linspace(0, np.pi, endpoint=True, num=50)
         theta, phi = np.meshgrid(u, v)
@@ -375,12 +416,13 @@ class S2(ManifoldEnv):
 
         return (2 * half_angle).sum(dim=-1)
 
+
 if __name__ == '__main__':
-    env = S2()
+    env = T2()
     dataset = env.get_dataset(20)
 
     # Render some planner trajectories
-    for i in range(10):
+    for i in range(20):
         im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
         plt.imshow(im)
         plt.show()

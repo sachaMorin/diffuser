@@ -49,8 +49,8 @@ class SO3(ManifoldEnv):
     def intrisic_to_embedding(self, intrinsic):
         return S2.intrisic_to_embedding(self, intrinsic)
 
-    def get_intrisic_mesh(self):
-        return S2.get_intrisic_mesh(self)
+    def get_intrinsic_mesh(self):
+        return S2.get_intrinsic_mesh(self)
 
     def to_full_matrix(self, R):
         """Cross product to predict the third column of an R^6 rotation prediction.
@@ -147,7 +147,7 @@ class SO3(ManifoldEnv):
         Input should be an R^6 rotation embedding.
         """
         # Plot manifold mesh
-        mesh = self.get_intrisic_mesh()
+        mesh = self.get_intrinsic_mesh()
         fig, ax = triu_plot(self.intrinsic_to_3D(mesh), mesh)
 
         # Generate some 3D arrow
