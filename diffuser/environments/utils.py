@@ -2,11 +2,9 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as p3
 import numpy as np
 import matplotlib.tri as mtri
-import torch
 
 from sklearn.neighbors import kneighbors_graph
 from scipy.sparse.csgraph import shortest_path, connected_components
-from scipy.spatial.transform import Rotation, Slerp
 
 
 def set_axes_equal(ax):
@@ -143,32 +141,4 @@ class ManifoldPlanner:
 
         return traj
 
-
-class SO3InterpolationPlanner:
-    def __init__(self, env, n_samples=5000, random_seed=42):
-        self.env = env
-        self.rng = np.random.RandomState(random_seed)
-
-    def path(self, start_coords=None, goal_coords=None):
-        """If input coords are None, sample random trajectory
-
-        Otherwise start_coords and goal_coords should be flat R^6 rotation embeddings."""
-        if start_coords is None:
-            rots = Rotation.random(2, random_state=self.rng)
-        else:
-            # Need to map R^6 to Scipy rotations
-            coords = np.vstack((start_coords, goal_coords))
-            matrices = self.env.to_full_matrix(coords)
-            rots = Rotation.from_matrix(matrices)
-
-        slerp = Slerp([0, 1], rots)
-
-        times = np.linspace(0, 1, num=12, endpoint=True)
-
-        mx_traj = slerp(times).as_matrix()
-
-        # Map to R^6 embedding
-        mx_traj_r6 = mx_traj[:, :, :2].reshape((12, 6))
-
-        return mx_traj_r6
 

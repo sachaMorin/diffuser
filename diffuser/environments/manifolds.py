@@ -48,7 +48,7 @@ class ManifoldEnv(gym.Env):
         self.action_space.seed(seed)
         self.observation_space.seed(seed)
         self.random_state = seed
-        self.planner = self.get_planner(self.random_state)
+        # self.planner = self.get_planner(self.random_state)
 
     # def get_planner(self, random_state, n_samples=5000):
     #     return ManifoldPlanner(self, random_seed=random_state, n_samples=n_samples)
@@ -169,9 +169,9 @@ class ManifoldEnv(gym.Env):
         fig, ax = triu_plot(self.intrinsic_to_3D(mesh), mesh)
 
         # Plot trajectory
-        _, traj = self.projection(None, traj)
+        # _, traj = self.projection(None, traj)
         traj = self.expand_traj(traj)
-        _, traj = self.projection(None, traj)
+        # _, traj = self.projection(None, traj)
         traj = self.embedding_to_3D(traj)
         surface_plot(traj, fig=fig, ax=ax, cmap="plasma")
         ax.scatter(*traj[0], c='#0D0887', s=100, linewidths=1, edgecolors='k')
@@ -352,13 +352,16 @@ class S2(ManifoldEnv):
 
     def projection(self, actions, obs):
         if torch.is_tensor(obs):
-            norm = torch.linalg.norm(obs, dim=-1, keepdims=True)
+            return actions, torch.nn.functional.normalize(obs, p=2, dim=-1)
         else:
+            #  Numpy array
             norm = np.linalg.norm(obs, axis=-1, keepdims=True)
+            mask = norm == 0
+            norm[mask] = 1
 
-        norm[norm == 0.0] = 1.00
+            obs = obs / norm
 
-        return actions, obs / norm
+            return actions, obs
 
     def seq_geodesic_distance(self, x):
         # See https://stackoverflow.com/questions/52210911/great-circle-distance-between-two-p-x-y-z-points-on-a-unit-sphere#:~:text=the%20distance%20on%20the%20great,%3D%202*phi*R%20.

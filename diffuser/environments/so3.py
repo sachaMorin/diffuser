@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from scipy.spatial.transform import Rotation
+from scipy.spatial.transform import Rotation, Slerp
 
 import einops
 from diffuser.environments.manifolds import ManifoldEnv
-from .manifolds import S2
+from manifolds import S2
 
-from diffuser.environments.utils import surface_plot, triu_plot, SO3InterpolationPlanner
+from diffuser.environments.utils import surface_plot, triu_plot
 
 
 class SO3(ManifoldEnv):
@@ -32,7 +32,7 @@ class SO3(ManifoldEnv):
         self.observation_dim = 6
 
     def get_planner(self, random_state, n_samples=5000):
-        return SO3InterpolationPlanner(self, random_seed=random_state)
+        return SO3SlerpInterpolation(self, random_seed=random_state)
 
     def _update_state_intrinsic(self, action):
         # Shouldn't be needed
@@ -40,7 +40,8 @@ class SO3(ManifoldEnv):
 
     def sample(self, n_samples):
         # Only keep first 2 columns (R^6 embedding)
-        samples = np.stack([Rotation.random().as_matrix()[:, :2] for _ in range(n_samples)], axis=0).reshape(
+        samples = np.stack([Rotation.random(random_state=self.rng).as_matrix()[:, :2] for _ in range(n_samples)],
+                           axis=0).reshape(
             (n_samples, -1))
 
         return samples
@@ -122,6 +123,23 @@ class SO3(ManifoldEnv):
         dist = torch.arccos(cos)
 
         return dist.sum(dim=1)
+
+    def interpolate(self, start, goal):
+        # Need to map R^6 to Scipy rotations
+        coords = np.vstack((start, goal))
+        matrices = self.to_full_matrix(coords)
+        rots = Rotation.from_matrix(matrices)
+
+        slerp = Slerp([0, 1], rots)
+
+        times = np.linspace(0, 1, num=self.horizon, endpoint=True)
+
+        mx_traj = slerp(times).as_matrix()
+
+        # Map to R^6 embedding
+        mx_traj_r6 = mx_traj[:, :, :2].reshape((self.horizon, 6))
+
+        return mx_traj_r6
 
     def render(self, observations=None, mode='human'):
         """Render trajectory of 3D rotations.
@@ -231,10 +249,10 @@ if __name__ == '__main__':
     dataset = env.get_dataset(100)
 
     # Render some planner trajectories
-    # for i in range(10):
-    #     im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
-    #     plt.imshow(im)
-    #     plt.show()
+    for i in range(10):
+        im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
+        plt.imshow(im)
+        plt.show()
 
     # Score planner trajectories
     obs = dataset['observations'].reshape((100, 12, 6))
