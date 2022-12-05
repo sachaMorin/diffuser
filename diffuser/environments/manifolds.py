@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 
 from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
 
+from geometry.manifolds.sphere import Sphere
+from geometry.manifolds.torus import Torus
+
 
 class ManifoldEnv(gym.Env):
     def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12, n_samples_planner=5000):
@@ -37,7 +40,7 @@ class ManifoldEnv(gym.Env):
         self.t = 0
 
         # Manifold planner
-        self.planner = self.get_planner(self.random_state, n_samples=n_samples_planner)
+        # self.planner = self.get_planner(self.random_state, n_samples=n_samples_planner)
 
     def seed(self, seed=None):
         super().seed(seed)
@@ -47,8 +50,8 @@ class ManifoldEnv(gym.Env):
         self.random_state = seed
         self.planner = self.get_planner(self.random_state)
 
-    def get_planner(self, random_state, n_samples=5000):
-        return ManifoldPlanner(self, random_seed=random_state, n_samples=n_samples)
+    # def get_planner(self, random_state, n_samples=5000):
+    #     return ManifoldPlanner(self, random_seed=random_state, n_samples=n_samples)
 
     def random_step(self):
         action = self.action_space.sample()
@@ -102,22 +105,24 @@ class ManifoldEnv(gym.Env):
         """Return sampled embeddings."""
         raise NotImplementedError()
 
-    def get_dataset(self, n_samples=2000):
+    def get_dataset(self, n_samples=1000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
         for i in range(n_samples):
-            traj = []
+            # traj = []
 
             # Sample random path
-            while len(traj) < self.horizon:
-                traj = self.planner.path()
+            # while len(traj) < self.horizon:
+            #     traj = self.planner.path()
+            start, goal = self.sample(2)
+            traj = self.interpolate(start, goal)
 
             # Lower the resolution down to horizon
-            if traj.shape[0] > 2 * self.horizon:
-                step = traj.shape[0] // self.horizon
-                traj = traj[::step]
-
-            # Then just pick first self.horizon observations
-            traj = traj[:self.horizon]
+            # if traj.shape[0] > 2 * self.horizon:
+            #     step = traj.shape[0] // self.horizon
+            #     traj = traj[::step]
+            #
+            # # Then just pick first self.horizon observations
+            # traj = traj[:self.horizon]
 
             # Fillers
             actions = np.zeros((traj.shape[0], 2))
@@ -135,6 +140,9 @@ class ManifoldEnv(gym.Env):
             dataset[k] = np.concatenate(v)
 
         return dataset
+
+    def interpolate(self, start, goal):
+        raise NotImplementedError()
 
     def get_intrisic_mesh(self):
         raise NotImplementedError()
@@ -165,7 +173,7 @@ class ManifoldEnv(gym.Env):
         traj = self.expand_traj(traj)
         _, traj = self.projection(None, traj)
         traj = self.embedding_to_3D(traj)
-        surface_plot(traj, fig=fig, ax=ax)
+        surface_plot(traj, fig=fig, ax=ax, cmap="plasma")
         ax.scatter(*traj[0], c='#0D0887', s=100, linewidths=1, edgecolors='k')
         ax.scatter(*traj[-1], c='#F0F921', s=100, linewidths=1, edgecolors='k')
 
@@ -303,6 +311,7 @@ class S2(ManifoldEnv):
                          **kwargs)
 
         self.name = 't2'
+        self.manifold = Sphere(2)  # PyGeometric Object
 
     def _update_state_intrinsic(self, action):
         self.state_intrinsic = (self.state_intrinsic + action) % self.high_obs
@@ -317,6 +326,16 @@ class S2(ManifoldEnv):
         emb[:, 1] = np.sin(theta) * np.sin(phi)
         emb[:, 2] = np.cos(theta)
         return np.squeeze(emb)
+
+    def interpolate(self, start, goal):
+        result = [start]
+        ts = np.linspace(0, 1, num=self.horizon)
+        ts = ts[1:-1]  # We add start and goal manually
+        for t in ts:
+            result.append(self.manifold.geodesic(start, goal, t))
+        result.append(goal)
+
+        return np.vstack(result)
 
     def sample(self, n_samples):
         samples = self.rng.normal(size=(n_samples, 3))
@@ -352,3 +371,13 @@ class S2(ManifoldEnv):
         half_angle = torch.arcsin(chordal_dist / 2)
 
         return (2 * half_angle).sum(dim=-1)
+
+if __name__ == '__main__':
+    env = S2()
+    dataset = env.get_dataset(20)
+
+    # Render some planner trajectories
+    for i in range(10):
+        im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
+        plt.imshow(im)
+        plt.show()
