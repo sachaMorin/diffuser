@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 import einops
 from diffuser.environments.manifolds import ManifoldEnv
-from manifolds import S2
+from .manifolds import S2
 
 from diffuser.environments.utils import surface_plot, triu_plot
 
@@ -30,9 +30,6 @@ class SO3(ManifoldEnv):
 
         self.name = 'SO(3)'
         self.observation_dim = 6
-
-    def get_planner(self, random_state, n_samples=5000):
-        return SO3SlerpInterpolation(self, random_seed=random_state)
 
     def _update_state_intrinsic(self, action):
         # Shouldn't be needed

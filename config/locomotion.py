@@ -18,7 +18,7 @@ args_to_watch = [
     ('discount', 'd'),
 ]
 
-logbase = 'logs'
+logbase = '../diffuser_logs'
 
 base = {
     'diffusion': {
@@ -199,11 +199,11 @@ S1_v1 = {
 
 T2_v1 = {
     'diffusion' : {
-        'n_train_steps': 10000,
-        'save_freq': 2000,
+        'n_train_steps': 2e5,
+        'save_freq': 20000,
         # 'n_train_steps': 1000,
         # 'save_freq': 200,
-        'n_steps_per_epoch': 100,
+        'n_steps_per_epoch': 1000,
         'renderer': 'utils.GeometricRenderer',
         'loader': 'datasets.GoalDataset',
         'horizon': 12,

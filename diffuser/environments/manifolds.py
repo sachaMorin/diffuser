@@ -7,7 +7,7 @@ import numpy as np
 from gym import spaces
 import matplotlib.pyplot as plt
 
-from diffuser.environments.utils import surface_plot, triu_plot, ManifoldPlanner
+from diffuser.environments.utils import surface_plot, triu_plot
 
 from geometry.manifolds.sphere import Sphere
 from geometry.manifolds.torus import Torus
@@ -48,10 +48,6 @@ class ManifoldEnv(gym.Env):
         self.action_space.seed(seed)
         self.observation_space.seed(seed)
         self.random_state = seed
-        # self.planner = self.get_planner(self.random_state)
-
-    # def get_planner(self, random_state, n_samples=5000):
-    #     return ManifoldPlanner(self, random_seed=random_state, n_samples=n_samples)
 
     def random_step(self):
         action = self.action_space.sample()
@@ -105,7 +101,7 @@ class ManifoldEnv(gym.Env):
         """Return sampled embeddings."""
         raise NotImplementedError()
 
-    def get_dataset(self, n_samples=1000):
+    def get_dataset(self, n_samples=5000):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
         for i in range(n_samples):
             # traj = []

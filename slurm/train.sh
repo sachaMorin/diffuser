@@ -1,11 +1,16 @@
-for env in hopper walker2d halfcheetah;
+for env in S2 T2 SO3 SO3GS;
 do
-	for buffer in medium-replay medium medium-expert;
+	for seed in 1;
 	do
-		job=diff-${env:0:2}-${buffer}
-		echo $job
-		sbatch -J $job singularity/sbatch.sh \
-			python scripts/train.py \
-				--dataset $env-$buffer-v2
+    for mode in start no_projection;
+    do
+      job=diff-${env}-${mode}-${seed}
+      echo $job
+      sbatch -J $job slurm/sbatch.sh \
+        python scripts/train.py \
+          --dataset $env-v1 \
+          --seed $seed \
+          --manifold_diffuser_mode $mode
+	  done
 	done
 done
