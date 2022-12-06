@@ -186,6 +186,9 @@ class GaussianDiffusion(nn.Module):
         # x_0
         x_recon = self.predict_start_from_noise(x, t=t, noise=self.model(x, cond, t))
 
+        if self.project_x_0:
+            x_recon = self.projection(x_recon)
+
         if self.clip_denoised:
             x_recon.clamp_(-1., 1.)
         else:
@@ -204,7 +207,7 @@ class GaussianDiffusion(nn.Module):
         batch_size = shape[0]
         x = torch.randn(shape, device=device)
 
-        # Projection onto the manifold during denoising process
+        # Projection onto the manifold during sampling
         if self.project_diffusion or self.project_x_t:
             x = self.projection(x)
 
@@ -217,7 +220,7 @@ class GaussianDiffusion(nn.Module):
             t = make_timesteps(batch_size, i, device)
             x, values = sample_fn(self, x, cond, t, **sample_kwargs)
 
-            # Projection onto the manifold during denoising process
+            # Projection onto the manifold during sampling
             if self.project_diffusion or self.project_x_t:
                 x = self.projection(x)
             if self.mask_action:

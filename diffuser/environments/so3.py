@@ -43,8 +43,8 @@ class SO3(ManifoldEnv):
 
         return samples
 
-    def intrisic_to_embedding(self, intrinsic):
-        return S2.intrisic_to_embedding(self, intrinsic)
+    def intrinsic_to_embedding(self, intrinsic):
+        return S2.intrinsic_to_embedding(self, intrinsic)
 
     def get_intrinsic_mesh(self):
         return S2.get_intrinsic_mesh(self)
@@ -80,10 +80,10 @@ class SO3(ManifoldEnv):
         # obs, ps = einops.pack([obs], "* t m")  # Auto-batching
 
         # Matrix format
-        obs = einops.rearrange(obs, "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
+        obs_mx = einops.rearrange(obs.clone(), "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
 
         # SVD
-        U, S, Vt = torch.svd(obs)
+        U, S, Vt = torch.svd(obs_mx)
 
         # Orthogonalize
         obs_prime = U @ Vt
@@ -91,9 +91,18 @@ class SO3(ManifoldEnv):
         # Flat format
         obs_prime = einops.rearrange(obs_prime, "n t m1 m2 -> n t (m1 m2)", m1=3, m2=2)
 
+        # Flip check
+        with torch.no_grad():
+            norm_1 = torch.linalg.norm(obs - obs_prime, dim=-1)
+            norm_2 = torch.linalg.norm(obs + obs_prime, dim=-1)
+            mask = norm_2 < norm_1
+            print(f"Flipped {mask.sum()} matrices")
+        obs_prime[mask] *= -1
+
         # Sanity check (comment this for performance)
         # mx = self.to_full_matrix(obs_prime)
         # det = mx.det()
+        # import pdb; pdb.set_trace()
         # if not torch.allclose(torch.ones_like(det), det):
         #     raise Exception('We have weird determinants')
 
@@ -198,7 +207,7 @@ class SO3GS(SO3):
         # obs, ps = einops.pack([obs], "* t m")  # Auto-batching
 
         # Matrix format
-        obs = einops.rearrange(obs, "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
+        obs = einops.rearrange(obs.clone(), "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
 
         # Unit norm first vector
         norm_u1 = torch.linalg.norm(obs[..., 0], dim=-1, keepdims=True)
@@ -241,15 +250,16 @@ if __name__ == '__main__':
 
     # your code
     import matplotlib.pyplot as plt
+    import geotorch
 
     env = SO3GS(seed=42, n_samples_planner=5000)
     dataset = env.get_dataset(100)
 
     # Render some planner trajectories
-    for i in range(10):
-        im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
-        plt.imshow(im)
-        plt.show()
+    # for i in range(10):
+    #     im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
+    #     plt.imshow(im)
+    #     plt.show()
 
     # Score planner trajectories
     obs = dataset['observations'].reshape((100, 12, 6))
@@ -257,12 +267,68 @@ if __name__ == '__main__':
     geo = env.seq_geodesic_distance(obs_t)
     obs_direct = obs_t[:, [0, -1], :]
     geo_direct = env.seq_geodesic_distance(obs_direct)
-    print((geo / geo_direct).mean())
+
+
+    # print((geo / geo_direct).mean())
+
+    # Some checks
+    def is_steifel(obs):
+        stiefel = geotorch.Stiefel((3, 2))
+        for b in range(obs.shape[0]):
+            for t in range(obs.shape[1]):
+                assert stiefel.in_manifold(obs[b, t])
+
+
+    def is_so3(obs):
+        so3 = geotorch.SO((3, 3))
+        for b in range(obs.shape[0]):
+            for t in range(obs.shape[1]):
+                assert so3.in_manifold(obs[b, t])
+
+
+    # Make sure our data is actually on the manifold
+    obs = obs_t.reshape((100, 12, 3, 2))
+    is_steifel(obs)
+
+    # Now make sure the R^6 embedding is on the Steifel manifold
+    obs_randn = torch.randn((100, 12, 6))
+    obs_randn_bk = obs_randn.clone()
+    _, obs_svd = SO3.projection(None, None, obs_randn)
+    is_steifel(obs_svd.reshape((100, 12, 3, 2)))
+    _, obs_gs = SO3GS.projection(None, None, obs_randn)
+    is_steifel(obs_gs.reshape((100, 12, 3, 2)))
+
+    # Complete matrices and check if they are on SO(3)
+    obs_svd_mx = SO3.to_full_matrix(None, obs_svd)
+    obs_svd_gs = SO3GS.to_full_matrix(None, obs_gs)
+    is_so3(obs_svd_mx)
+    is_so3(obs_svd_gs)
+
+    # New projections
+    _, obs_svd_2 = SO3.projection(None, None, obs_randn)
+    is_steifel(obs_svd_2.reshape((100, 12, 3, 2)))
+    _, obs_gs_2 = SO3GS.projection(None, None, obs_randn)
+    is_steifel(obs_gs_2.reshape((100, 12, 3, 2)))
+
+    # Make sure reprojections and projections are identical
+    assert torch.allclose(obs_gs, obs_gs_2)
+    assert torch.allclose(obs_svd, obs_svd_2)
+
+    # Make sure input noise didn't change
+    assert torch.allclose(obs_randn_bk, obs_randn)
+
+    # Now project an already projected version
+    _, obs_svd_3 = SO3.projection(None, None, obs_svd)
+    is_steifel(obs_svd_3.reshape((100, 12, 3, 2)))
+    _, obs_gs_3 = SO3GS.projection(None, None, obs_gs)
+    is_steifel(obs_gs_3.reshape((100, 12, 3, 2)))
+    assert torch.allclose(obs_gs, obs_gs_3, atol=1e-5)
+    assert torch.allclose(obs_svd, obs_svd_3, atol=1e-5)
 
     # Score random trajectories
-    obs = torch.randn((1000, 12, 6))
-    _, obs = env.projection(None, obs)
-    geo = env.seq_geodesic_distance(obs)
-    obs_direct = obs[:, [0, -1], :]
-    geo_direct = env.seq_geodesic_distance(obs_direct)
-    print((geo / geo_direct).mean())
+    # obs = torch.randn((1000, 12, 6))
+    # _, obs = env.projection(None, obs)
+    # geo = env.seq_geodesic_distance(obs)
+    # obs_direct = obs[:, [0, -1], :]
+    # geo_direct = env.seq_geodesic_distance(obs_direct)
+    # print((geo / geo_direct).mean())
