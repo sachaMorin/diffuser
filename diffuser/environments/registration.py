@@ -35,7 +35,7 @@ ENVIRONMENT_SPECS = (
     },
     {
         'id': 'SO3GS-v1',
-        'entry_point': ('diffuser.environments.so3:SO3'),
+        'entry_point': ('diffuser.environments.so3:SO3GS'),
     },
 )
 

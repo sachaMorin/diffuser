@@ -2,7 +2,7 @@ for env in S2 T2 SO3 SO3GS;
 do
 	for seed in 1;
 	do
-    for mode in start no_projection;
+    for mode in start start_and_noise no_projection;
     do
       job=diff-${env}-${mode}-${seed}
       echo $job

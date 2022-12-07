@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 import einops
 from diffuser.environments.manifolds import ManifoldEnv
-from .manifolds import S2
+from manifolds import S2
 
 from diffuser.environments.utils import surface_plot, triu_plot
 
@@ -96,7 +96,7 @@ class SO3(ManifoldEnv):
             norm_1 = torch.linalg.norm(obs - obs_prime, dim=-1)
             norm_2 = torch.linalg.norm(obs + obs_prime, dim=-1)
             mask = norm_2 < norm_1
-            print(f"Flipped {mask.sum()} matrices")
+            # print(f"Flipped {mask.sum()} matrices")
         obs_prime[mask] *= -1
 
         # Sanity check (comment this for performance)
@@ -210,16 +210,14 @@ class SO3GS(SO3):
         obs = einops.rearrange(obs.clone(), "b t (m1 m2) -> b t m1 m2", m1=3, m2=2)
 
         # Unit norm first vector
-        norm_u1 = torch.linalg.norm(obs[..., 0], dim=-1, keepdims=True)
-        obs[..., 0] /= norm_u1
+        obs[..., 0] = torch.nn.functional.normalize(obs[..., 0].clone(), p=2, dim=-1)
 
         # Orthogonalize second vector
-        dot_u1_u2 = (obs[..., 0].unsqueeze(-2) @ obs[..., 1].unsqueeze(-1)).squeeze(-1)
-        obs[..., 1] = obs[..., 1] - dot_u1_u2 * obs[..., 0]
+        dot_u1_u2 = (obs[..., 0].clone().unsqueeze(-2) @ obs[..., 1].clone().unsqueeze(-1)).squeeze(-1)
+        obs[..., 1] = obs[..., 1].clone() - dot_u1_u2 * obs[..., 0].clone()
 
         # Unit norm second vector
-        norm_u2 = torch.linalg.norm(obs[..., 1], dim=-1, keepdims=True)
-        obs[..., 1] /= norm_u2
+        obs[..., 1] = torch.nn.functional.normalize(obs[..., 1].clone(), p=2, dim=-1)
 
         # Flat format
         obs = einops.rearrange(obs, "n t m1 m2 -> n t (m1 m2)", m1=3, m2=2)
