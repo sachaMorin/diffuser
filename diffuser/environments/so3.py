@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 import einops
 from diffuser.environments.manifolds import ManifoldEnv
-from manifolds import S2
+from .manifolds import S2
 
 from diffuser.environments.utils import surface_plot, triu_plot
 
