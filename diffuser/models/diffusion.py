@@ -183,8 +183,13 @@ class GaussianDiffusion(nn.Module):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def p_mean_variance(self, x, cond, t):
+        if self.project_x_t:
+            x_in = self.projection(x)
+        else:
+            x_in = x
+
         # x_0
-        x_recon = self.predict_start_from_noise(x, t=t, noise=self.model(x, cond, t))
+        x_recon = self.predict_start_from_noise(x, t=t, noise=self.model(x_in, cond, t))
 
         if self.project_x_0:
             x_recon = self.projection(x_recon)
@@ -208,7 +213,7 @@ class GaussianDiffusion(nn.Module):
         x = torch.randn(shape, device=device)
 
         # Projection onto the manifold during sampling
-        if self.project_diffusion or self.project_x_t:
+        if self.project_diffusion:
             x = self.projection(x)
 
         x = apply_conditioning(x, cond, self.action_dim)
@@ -221,7 +226,7 @@ class GaussianDiffusion(nn.Module):
             x, values = sample_fn(self, x, cond, t, **sample_kwargs)
 
             # Projection onto the manifold during sampling
-            if self.project_diffusion or self.project_x_t:
+            if self.project_diffusion:
                 x = self.projection(x)
             if self.mask_action:
                 x[:, :, :self.action_dim] = 0.0
@@ -232,9 +237,9 @@ class GaussianDiffusion(nn.Module):
             progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
             if return_chain: chain.append(x)
 
-        if self.project_x_0 and not self.project_diffusion:
-            # If project_diffusion, x is already on the manifold
-            x = self.projection(x)
+        # if self.project_x_0 and not self.project_diffusion:
+        #     # If project_diffusion, x is already on the manifold
+        #     x = self.projection(x)
 
         x = apply_conditioning(x, cond, self.action_dim)
         progress.stamp()
@@ -271,12 +276,10 @@ class GaussianDiffusion(nn.Module):
             if self.mask_action:
                 sample[:, :, :self.action_dim] = 0.0
 
-            # Project noisy sample on manifold
-            if self.project_x_t:
-                sample = self.projection(sample)
         else:
             # Iterative Diffusion
-            # If we return chain, we still use iterative diffusion. Useful for visualization
+            # If we return chain, we still use iterative diffusion.
+            # Useful for visualization. We use the above block for training
             sample = x_start
 
             if return_chain:
@@ -326,11 +329,18 @@ class GaussianDiffusion(nn.Module):
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
         x_noisy = apply_conditioning(x_noisy, cond, self.action_dim)
 
-        x_recon = self.model(x_noisy, cond, t)
-        x_recon = apply_conditioning(x_recon, cond, self.action_dim)
+        # Project input
+        if self.project_x_t:
+            x_noisy = self.projection(x_noisy)
 
+        # Denoise with learned model
+        x_recon = self.model(x_noisy, cond, t)
+
+        # Project output
         if self.project_x_0:
             x_recon = self.projection(x_recon)
+
+        x_recon = apply_conditioning(x_recon, cond, self.action_dim)
 
         if self.mask_action:
             x_recon[:, :, :self.action_dim] = 0.0
