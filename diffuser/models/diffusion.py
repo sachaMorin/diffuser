@@ -99,7 +99,7 @@ class GaussianDiffusion(nn.Module):
             raise ValueError("Invalid value for manifold_diffuser_mode.")
 
         # Manifold Coefficients
-        self.manifold_timesteps = torch.linspace(0.0, 1.0, steps=int(n_timesteps)).cpu()  # Linear scale
+        self.manifold_timesteps = torch.linspace(0.0, 1.0, steps=int(n_timesteps + 1))[1:].cpu()  # Linear scale
         self.manifold_timesteps_inv = self.manifold_timesteps[:-1] / self.manifold_timesteps[1:]
         inv = [0] + list(self.manifold_timesteps[:-1]/self.manifold_timesteps[1:])
         self.manifold_timesteps_inv = torch.Tensor(inv)  # Inverse the scale
@@ -245,7 +245,11 @@ class GaussianDiffusion(nn.Module):
                 # Manifold sampling
                 x_0 = self.model(x, cond, t)
                 x_0 = self.projection(x_0)
-                x = self.manifold_interpolation(x_0, x, t, scales=self.manifold_timesteps_inv)
+                if i > 0:
+                    x = self.manifold_interpolation(x_0, x, t, scales=self.manifold_timesteps_inv)
+                else:
+                    # No noise
+                    x = x_0
                 values = torch.zeros(len(x), device=x.device)
             else:
                 # Standard sampling
