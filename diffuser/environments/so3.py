@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 import einops
 from diffuser.environments.manifolds import ManifoldEnv
-from .manifolds import S2
+from .manifolds import S2, SMALL, MEDIUM, LARGE
 
 from diffuser.environments.utils import surface_plot, triu_plot
 
@@ -232,6 +232,31 @@ class SO3GS(SO3):
         # [obs_prime] = einops.unpack(obs_prime, ps, "* t m")  # Auto-batching
 
         return actions, obs
+
+
+# Define datasets with different sizes
+class SO3small(SO3):
+    n_samples = SMALL
+
+
+class SO3medium(SO3):
+    n_samples = MEDIUM
+
+
+class SO3large(SO3):
+    n_samples = LARGE
+
+
+class SO3GSsmall(SO3GS):
+    n_samples = SMALL
+
+
+class SO3GSmedium(SO3GS):
+    n_samples = MEDIUM
+
+
+class SO3GSlarge(SO3GS):
+    n_samples = LARGE
 
 
 if __name__ == '__main__':

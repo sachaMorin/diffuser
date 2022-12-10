@@ -218,12 +218,42 @@ T2_v1 = {
 }
 T2_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
 
-S2_v1 = copy.deepcopy(T2_v1)
-S2_v1['plan'] = copy.deepcopy(S2_v1['diffusion'])
+T2_small_v1 = copy.deepcopy(T2_v1)
+T2_small_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
 
-SO3_v1 = copy.deepcopy(T2_v1)
-SO3_v1['plan'] = copy.deepcopy(SO3_v1['diffusion'])
+T2_medium_v1 = copy.deepcopy(T2_v1)
+T2_medium_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
 
-SO3GS_v1 = copy.deepcopy(T2_v1)
-SO3GS_v1['plan'] = copy.deepcopy(SO3GS_v1['diffusion'])
+T2_large_v1 = copy.deepcopy(T2_v1)
+T2_large_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+S2_small_v1 = copy.deepcopy(T2_v1)
+T2_small_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+S2_medium_v1 = copy.deepcopy(T2_v1)
+S2_medium_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+S2_large_v1 = copy.deepcopy(T2_v1)
+S2_large_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+SO3_small_v1 = copy.deepcopy(T2_v1)
+SO3_small_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+SO3_medium_v1 = copy.deepcopy(T2_v1)
+SO3_medium_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+SO3_large_v1 = copy.deepcopy(T2_v1)
+SO3_large_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+SO3GS_small_v1 = copy.deepcopy(T2_v1)
+SO3GS_small_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+SO3GS_medium_v1 = copy.deepcopy(T2_v1)
+SO3GS_medium_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+SO3GS_large_v1 = copy.deepcopy(T2_v1)
+SO3GS_large_v1['plan'] = copy.deepcopy(T2_v1['diffusion'])
+
+
+
 

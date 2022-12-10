@@ -17,8 +17,16 @@ from geometry.manifolds.torus import Torus
 # belong_ts
 contracts.disable_all()
 
+# Define dataset sizes
+SMALL = 100
+MEDIUM = 1000
+LARGE = 5000
+
+
 class ManifoldEnv(gym.Env):
-    def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12, n_samples_planner=5000):
+    n_samples = 200
+
+    def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12):
         self.name = None
         self.horizon = horizon
         self.random_state = seed
@@ -42,9 +50,6 @@ class ManifoldEnv(gym.Env):
         self.state_buffer = []
         self._max_episode_steps = 100
         self.t = 0
-
-        # Manifold planner
-        # self.planner = self.get_planner(self.random_state, n_samples=n_samples_planner)
 
     def seed(self, seed=None):
         super().seed(seed)
@@ -105,9 +110,9 @@ class ManifoldEnv(gym.Env):
         """Return sampled embeddings."""
         raise NotImplementedError()
 
-    def get_dataset(self, n_samples=5000):
+    def get_dataset(self):
         dataset = dict(observations=[], actions=[], rewards=[], terminals=[])
-        for i in range(n_samples):
+        for i in range(self.n_samples):
             # traj = []
 
             # Sample random path
@@ -426,12 +431,40 @@ class S2(ManifoldEnv):
         return (2 * half_angle).sum(dim=-1)
 
 
-if __name__ == '__main__':
-    env = T2()
-    dataset = env.get_dataset(20)
+# Define datasets with different sizes
+class T2small(T2):
+    n_samples = SMALL
 
-    # Render some planner trajectories
-    for i in range(20):
-        im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
-        plt.imshow(im)
-        plt.show()
+
+class T2medium(T2):
+    n_samples = MEDIUM
+
+
+class T2large(T2):
+    n_samples = LARGE
+
+
+class S2small(S2):
+    n_samples = SMALL
+
+
+class S2medium(S2):
+    n_samples = MEDIUM
+
+
+class S2large(S2):
+    n_samples = LARGE
+
+
+if __name__ == '__main__':
+    env = S2()
+    env_small = S2small()
+    # env = T2()
+    dataset = env_small.get_dataset()
+    import pdb; pdb.set_trace()
+    #
+    # # Render some planner trajectories
+    # for i in range(20):
+    #     im = env.render(torch.from_numpy(dataset['observations'][i * 12: (i + 1) * 12]))
+    #     plt.imshow(im)
+    #     plt.show()
