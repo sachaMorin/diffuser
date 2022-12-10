@@ -26,16 +26,52 @@ ENVIRONMENT_SPECS = (
         'entry_point': ('diffuser.environments.manifolds:T2'),
     },
     {
-        'id': 'S2-v1',
-        'entry_point': ('diffuser.environments.manifolds:S2'),
+        'id': 'T2-small-v1',
+        'entry_point': ('diffuser.environments.manifolds:T2small'),
     },
     {
-        'id': 'SO3-v1',
-        'entry_point': ('diffuser.environments.so3:SO3'),
+        'id': 'T2-medium-v1',
+        'entry_point': ('diffuser.environments.manifolds:T2medium'),
     },
     {
-        'id': 'SO3GS-v1',
-        'entry_point': ('diffuser.environments.so3:SO3GS'),
+        'id': 'T2-large-v1',
+        'entry_point': ('diffuser.environments.manifolds:T2large'),
+    },
+    {
+        'id': 'S2-small-v1',
+        'entry_point': ('diffuser.environments.manifolds:S2small'),
+    },
+    {
+        'id': 'S2-medium-v1',
+        'entry_point': ('diffuser.environments.manifolds:S2medium'),
+    },
+    {
+        'id': 'S2-large-v1',
+        'entry_point': ('diffuser.environments.manifolds:S2large'),
+    },
+    {
+        'id': 'SO3-small-v1',
+        'entry_point': ('diffuser.environments.so3:SO3small'),
+    },
+    {
+        'id': 'SO3-medium-v1',
+        'entry_point': ('diffuser.environments.so3:SO3medium'),
+    },
+    {
+        'id': 'SO3-large-v1',
+        'entry_point': ('diffuser.environments.so3:SO3large'),
+    },
+    {
+        'id': 'SO3GS-small-v1',
+        'entry_point': ('diffuser.environments.so3:SO3GSsmall'),
+    },
+    {
+        'id': 'SO3GS-medium-v1',
+        'entry_point': ('diffuser.environments.so3:SO3GSmedium'),
+    },
+    {
+        'id': 'SO3GS-large-v1',
+        'entry_point': ('diffuser.environments.so3:SO3GSlarge'),
     },
 )
 
