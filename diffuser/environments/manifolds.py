@@ -197,6 +197,11 @@ class ManifoldEnv(gym.Env):
         """Compute geodesic distance of sequences."""
         raise NotImplementedError()
 
+    def sample_torch(self, n_samples, device='cpu'):
+        samples = self.sample(n_samples)
+        return torch.from_numpy(samples).to(device)
+
+
 
 class T2(ManifoldEnv):
     metadata = {'render.modes': ['human']}

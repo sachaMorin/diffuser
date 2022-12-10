@@ -73,6 +73,8 @@ diffusion_config = utils.Config(
     device=args.device,
     normalizer=dataset.normalizer,
     projection_operator=dataset.env.projection,
+    sampler=dataset.env.sample_torch,
+    interpolator=dataset.env.interpolate_batch,
     manifold_diffuser_mode=args.manifold_diffuser_mode,
     mask_action=args.mask_action
 )
