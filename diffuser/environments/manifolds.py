@@ -9,9 +9,13 @@ import matplotlib.pyplot as plt
 
 from diffuser.environments.utils import surface_plot, triu_plot
 
+import contracts
 from geometry.manifolds.sphere import Sphere
 from geometry.manifolds.torus import Torus
 
+# Disable PyGeometry contracts for performance + avoid errors in Sphere due to
+# belong_ts
+contracts.disable_all()
 
 class ManifoldEnv(gym.Env):
     def __init__(self, low_obs, high_obs, low_action, high_action, seed=42, horizon=12, n_samples_planner=5000):
@@ -137,8 +141,27 @@ class ManifoldEnv(gym.Env):
 
         return dataset
 
-    def interpolate(self, start, goal):
+    def interpolate(self, start, goal, times=None):
+        # If times is none, it should default to self.get_horizon_times
         raise NotImplementedError()
+
+    def get_horizon_times(self):
+        return np.linspace(0, 1, num=self.horizon, endpoint=True)
+
+    def interpolate_batch(self, x_0, x_t, times):
+        # Naive numpy iterative interpolation for now
+        device = x_0.device
+        x_0, x_t = x_0.cpu().double().numpy(), x_t.cpu().double().numpy()
+        times = times.cpu().numpy()
+
+        batch_size = x_0.shape[0]
+        result = list()
+        for i in range(batch_size):
+            result.append(self.interpolate(x_0[i], x_t[i], np.array([times[i]])))
+
+        result = np.concatenate(result, axis=0)
+
+        return torch.from_numpy(result).to(device)
 
     def get_intrinsic_mesh(self):
         raise NotImplementedError()
@@ -165,9 +188,9 @@ class ManifoldEnv(gym.Env):
         fig, ax = triu_plot(self.intrinsic_to_3D(mesh), mesh)
 
         # Plot trajectory
-        # _, traj = self.projection(None, traj)
+        _, traj = self.projection(None, traj)
         traj = self.expand_traj(traj)
-        # _, traj = self.projection(None, traj)
+        _, traj = self.projection(None, traj)
         traj = self.embedding_to_3D(traj)
         surface_plot(traj, fig=fig, ax=ax, cmap="plasma")
         ax.scatter(*traj[0], c='#0D0887', s=100, linewidths=1, edgecolors='k')
@@ -200,7 +223,6 @@ class ManifoldEnv(gym.Env):
     def sample_torch(self, n_samples, device='cpu'):
         samples = self.sample(n_samples)
         return torch.from_numpy(samples).to(device)
-
 
 
 class T2(ManifoldEnv):
@@ -306,33 +328,11 @@ class T2(ManifoldEnv):
 
         return result
 
-
-
-        # Wrong implementation
-        # x = x.double()
-        # b, t, d = x.shape
-        # x = x.reshape((b, t, 2, d // 2))
-        # from_ = x[:, :-1, :]
-        # to = x[:, 1:, :]
-        #
-        # # Compute angles (geodesics) on the two circles
-        # # Both angles form a "right-angled" triangle
-        # chordal_dist = torch.linalg.norm(to - from_, dim=-1)
-        # half_angle = torch.arcsin(chordal_dist / 2)
-        # angle = 2 * half_angle
-        #
-        # # Find the hypotenuse of the triangle
-        # dist = torch.linalg.norm(angle, dim=-1)
-        #
-        # return dist.sum(dim=-1)
-
-    def interpolate(self, start, goal):
-        # if np.all(start == np.array([1, 0, 1, 0])):
-        #     import pdb; pdb.set_trace()
+    def interpolate(self, start, goal, times=None):
         start, goal = self.embedding_to_intrinsic(np.vstack((start, goal)))
 
         # Then use same logic as S2
-        angles = S2.interpolate(self, start, goal)
+        angles = S2.interpolate(self, start, goal, times)
 
         return self.intrinsic_to_embedding(angles)
 
@@ -369,13 +369,21 @@ class S2(ManifoldEnv):
         emb[:, 2] = np.cos(theta)
         return np.squeeze(emb)
 
-    def interpolate(self, start, goal):
-        result = [start]
-        ts = np.linspace(0, 1, num=self.horizon)
-        ts = ts[1:-1]  # We add start and goal manually
-        for t in ts:
-            result.append(self.manifold.geodesic(start, goal, t))
-        result.append(goal)
+    def interpolate(self, start, goal, times=None):
+        if times is None:
+            times = self.get_horizon_times()
+            result = [start]
+
+            # We add start and goal manually to save time and avoid numerical errors
+            times = times[1:-1]  # We add start and goal manually to save time
+            for t in times:
+                result.append(self.manifold.geodesic(start, goal, t))
+            result.append(goal)
+        else:
+            # Only iterate provided times
+            result = []
+            for t in times:
+                result.append(self.manifold.geodesic(start, goal, t))
 
         return np.vstack(result)
 

@@ -131,6 +131,9 @@ class SO3(ManifoldEnv):
         return dist.sum(dim=1)
 
     def interpolate(self, start, goal, times=None):
+        if times is None:
+            times = self.get_horizon_times()
+
         # Need to map R^6 to Scipy rotations
         coords = np.vstack((start, goal))
         matrices = self.to_full_matrix(coords)
@@ -138,30 +141,12 @@ class SO3(ManifoldEnv):
 
         slerp = Slerp([0, 1], rots)
 
-        if times is None:
-            times = np.linspace(0, 1, num=self.horizon, endpoint=True)
-
         mx_traj = slerp(times).as_matrix()
 
         # Map to R^6 embedding
         mx_traj_r6 = mx_traj[:, :, :2].reshape((len(times), 6))
 
         return mx_traj_r6
-
-    def interpolate_batch(self, x_0, x_t, times):
-        # Naive numpy iterative interpolation for now
-        device = x_0.device
-        x_0, x_t = x_0.cpu().numpy(), x_t.cpu().numpy()
-        times = times.cpu().numpy()
-
-        batch_size = x_0.shape[0]
-        result = list()
-        for i in range(batch_size):
-            result.append(self.interpolate(x_0[i], x_t[i], np.array([times[i]])))
-
-        result = np.concatenate(result, axis=0)
-
-        return torch.from_numpy(result).to(device)
 
     def render(self, observations=None, mode='human'):
         """Render trajectory of 3D rotations.
@@ -290,6 +275,7 @@ if __name__ == '__main__':
     times = torch.linspace(0, 1, steps=12)
     inter = env.interpolate_batch(start, goal, times)
     assert torch.allclose(traj, inter)
+
 
     # print((geo / geo_direct).mean())
 
