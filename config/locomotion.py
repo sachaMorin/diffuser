@@ -199,10 +199,10 @@ S1_v1 = {
 
 T2_v1 = {
     'diffusion' : {
-        # 'n_train_steps': 2e5,
-        # 'save_freq': 20000,
-        'n_train_steps': 2000,
-        'save_freq': 400,
+        'n_train_steps': 2e5,
+        'save_freq': 20000,
+        # 'n_train_steps': 2000,
+        # 'save_freq': 400,
         'n_steps_per_epoch': 1000,
         'renderer': 'utils.GeometricRenderer',
         'loader': 'datasets.GoalDataset',

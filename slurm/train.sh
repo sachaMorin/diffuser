@@ -1,16 +1,19 @@
-for env in S2 T2 SO3 SO3GS;
+for size in small medium large;
 do
-	for seed in 1;
-	do
-    for mode in start start_and_noise no_projection;
+  for env in S2 T2 SO3 SO3GS;
+  do
+    for seed in 12 123;
     do
-      job=diff-${env}-${mode}-${seed}
-      echo $job
-      sbatch -J $job slurm/sbatch.sh \
-        python scripts/train.py \
-          --dataset $env-v1 \
-          --seed $seed \
-          --manifold_diffuser_mode $mode
-	  done
-	done
+      for mode in no_projection start manifold_diffusion;
+      do
+        job=diff-${env}-${size}-${mode}-${seed}
+        echo $job
+        sbatch -J $job slurm/sbatch.sh \
+          python scripts/train.py \
+            --dataset $env-$size-v1 \
+            --seed $seed \
+            --manifold_diffuser_mode $mode
+      done
+    done
+  done
 done

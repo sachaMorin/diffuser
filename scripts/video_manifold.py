@@ -23,7 +23,7 @@ class Parser(utils.Parser):
 
 args = Parser().parse_args('plan')
 
-args.diffusion_loadpath = 'diffusion/defaults_H12_T20_PTrue_S42'
+args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pno_projection_S1'
 
 
 #-----------------------------------------------------------------------------#
@@ -41,6 +41,7 @@ diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
 renderer = diffusion_experiment.renderer
 
+
 policy_config = utils.Config(
     args.policy,
     guide=None,
@@ -55,30 +56,59 @@ policy_config = utils.Config(
     scale_grad_by_std=args.scale_grad_by_std,
     verbose=False,
 )
+
 policy = policy_config()
 
 
 # Visualize the denoising process
 # Torus
-if args.dataset == 'T2-v1':
-    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, np.pi/2, 1.0, 0.0])}
-elif args.dataset == 'S2-v1':
+if 'T2' in args.dataset:
+    # cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, 1.0, 1.0, 0.0])}
+    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: -torch.tensor([0.0, 1.0, 0.0, 1.0])}
+elif 'S2' in args.dataset:
     cond = {0: torch.tensor([1.0, 0.0, 0.0]), -1: torch.tensor([0.0, -1.0, 0.0])}
-elif args.dataset == 'SO3-v1':
+elif 'SO3' in args.dataset:
     cond = {
-        0: torch.tensor([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
-        # 0: torch.tensor([1.0, 0.0, 0.0, 0.9659258262890682, 0.0, 0.25881904510252074]),
-        -1: torch.tensor([-1.00000000e+00, -1.22464680e-16,  2.46519033e-32, -2.22044605e-16,1.22464680e-16, -1.00000000e+00]),
-        # -1: torch.tensor([1.0, 0.0, 0.0, 2.220446049250313e-16, 0.0, 1.0]),
-        # -1: torch.tensor([1.0, 0.0, 0.0, -0.7071067811865475, 0.0, 0.7071067811865477]),
+        # 0: torch.tensor([ 0.4684, -0.0467,  0.8672,  0.2154, -0.1691,  0.9754]),  # Test hard traj
+        # -1: torch.tensor([ 0.4931,  0.0054,  0.8698, -0.0248,  0.0189,  0.9997]),  # Test hard traj
+        # 0: torch.tensor([-0.9276,  0.3369,  0.1208,  0.6793,  0.3535,  0.6520]),  # Test hard traj 2
+        # -1: torch.tensor([-0.2745, -0.7507,  0.4615, -0.6511, -0.8436, -0.1119]),  # Test hard traj 2
+        # 0: torch.tensor([ 0.4684, -0.0467,  0.8672,  0.2154, -0.1691,  0.9754]),  # Test hard traj 3
+        # -1: torch.tensor([ 0.8099, -0.1148, -0.5144, -0.6101,  0.2817, -0.7839]),  # Test hard traj 3
+        0: torch.tensor([1.0, 0.0, 0.0, 0.9659258262890682, 0.0, 0.25881904510252074]),  # Nice vid
+        -1: torch.tensor([-1.00000000e+00, -1.22464680e-16,  2.46519033e-32, -2.22044605e-16,1.22464680e-16, -1.00000000e+00]),  # Nice vid
+        # -1: torch.tensor([1.0, 0.0, 0.0, 2.220446049250313e-16, 0.0, 1.0]),  # Paralelle
+        # 0: torch.tensor([-0.2452,  0.6542,  0.5221, -0.5328,  0.8169,  0.5369]),
+        # -1: torch.tensor([ 0.1286,  0.5054,  0.8372, -0.5165,  0.5316,  0.6912]),
     }
 else:
     raise ValueError('Wrong dataset name.')
 cond_copy = copy.deepcopy(cond)
 
+seed = 42
+torch.manual_seed(seed)
+np.random.seed(seed)
+import random
+random.seed(seed)
+
 _, samples = policy(cond, batch_size=1, verbose=args.verbose, return_chain=True)
 
 chains = samples.chains[0]
+# _, chains = dataset.env.projection(None, torch.from_numpy(chains))
+# chains = chains.numpy()
+# Project last step to manifold if model is not using manifold projections
+
+chains_torch = torch.from_numpy(chains)
+
+# Make sure the last trajectory is on the manifold
+_, chains_torch[-1] = dataset.env.projection(None, chains_torch[-1].unsqueeze(0))
+# Reapply conditioning
+chains_torch[-1, 0] = cond[0]
+chains_torch[-1, -1] = cond[-1]
+
+diffuser_dist = dataset.env.seq_geodesic_distance(chains_torch[-1].unsqueeze(0))
+
+chains = chains_torch.numpy()
 
 save_base = os.path.join(args.loadbase, args.dataset, args.diffusion_loadpath)
 show_diffusion(renderer,
@@ -90,9 +120,10 @@ show_diffusion(renderer,
                )
 
 # Visualize the diffusion process
-# Make sure you have a full trajectory otherwise you may end up with the goal outside the manifold due to padding
-traj = dataset.env.planner.path(cond_copy[0].cpu().numpy(), cond_copy[-1].cpu().numpy())
+traj = dataset.env.interpolate(cond_copy[0].cpu().numpy(), cond_copy[-1].cpu().numpy())
 traj = np.expand_dims(traj, 0)
+expert_dist = dataset.env.seq_geodesic_distance(torch.from_numpy(traj))
+
 # Add dummy actions
 dummy_actions = np.zeros((traj.shape[0], traj.shape[1], diffusion.action_dim))
 traj = np.concatenate((dummy_actions, traj), axis=-1)
@@ -103,7 +134,7 @@ traj = traj.to(diffusion.betas.device)
 t = torch.Tensor([diffusion.n_timesteps]).long().to(traj.device)
 trajs = diffusion.q_sample(traj, t=t, return_chain=True).cpu().numpy()
 trajs = diffusion.normalizer.unnormalize(trajs[:, :, diffusion.action_dim:], "observations")
-trajs = trajs[:, :-1, :]  # Trim trajectory here to remove padding
+# trajs = trajs[:, :-1, :]  # Trim trajectory here to remove padding
 
 
 # Fix start and goal
@@ -119,3 +150,5 @@ show_diffusion(renderer,
                fps=5,
                )
 
+print(f"Diffuser dist : {diffuser_dist.item():.4f}")
+print(f"Expert   dist : {expert_dist.item():.4f}")

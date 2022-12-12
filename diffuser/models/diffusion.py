@@ -44,7 +44,8 @@ class GaussianDiffusion(nn.Module):
     def __init__(self, model, horizon, observation_dim, action_dim, n_timesteps=1000,
                  loss_type='l1', clip_denoised=False, predict_epsilon=True,
                  action_weight=1.0, loss_discount=1.0, loss_weights=None, normalizer=None,
-                 mask_action=False, projection_operator=None, sampler=None, interpolator=None, manifold_diffuser_mode="no_projection"):
+                 mask_action=False, projection_operator=None, sampler=None, interpolator=None,
+                 manifold_diffuser_mode="no_projection"):
         super().__init__()
         self.horizon = horizon
         self.observation_dim = observation_dim
@@ -101,7 +102,7 @@ class GaussianDiffusion(nn.Module):
         # Manifold Coefficients
         self.manifold_timesteps = torch.linspace(0.0, 1.0, steps=int(n_timesteps + 1))[1:].cpu()  # Linear scale
         self.manifold_timesteps_inv = self.manifold_timesteps[:-1] / self.manifold_timesteps[1:]
-        inv = [0] + list(self.manifold_timesteps[:-1]/self.manifold_timesteps[1:])
+        inv = [0] + list(self.manifold_timesteps[:-1] / self.manifold_timesteps[1:])
         self.manifold_timesteps_inv = torch.Tensor(inv)  # Inverse the scale
 
         # Euclidean Coefficients
@@ -241,6 +242,20 @@ class GaussianDiffusion(nn.Module):
         progress = utils.Progress(self.n_timesteps) if verbose else utils.Silent()
         for i in reversed(range(0, self.n_timesteps)):
             t = make_timesteps(batch_size, i, device)
+
+            # Single shot prediction
+            # Experimental. Set to False for standard diffusion
+            # if False:
+            #     x_0 = self.model(x, cond, t)
+            #     if self.manifold_diffusion:
+            #         x_0 = self.projection(x_0)
+            #     values = torch.zeros(len(x), device=x.device)
+            #     if self.mask_action:
+            #         x_0[:, :, :self.action_dim] = 0.0
+            #
+            #     x_0 = apply_conditioning(x_0, cond, self.action_dim)
+            #     return Sample(x_0, values, None)
+
             if self.manifold_diffusion:
                 # Manifold sampling
                 x_0 = self.model(x, cond, t)
@@ -262,7 +277,6 @@ class GaussianDiffusion(nn.Module):
                 x[:, :, :self.action_dim] = 0.0
 
             x = apply_conditioning(x, cond, self.action_dim)
-
 
             progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
             if return_chain: chain.append(x)
@@ -301,8 +315,8 @@ class GaussianDiffusion(nn.Module):
         if not self.manifold_diffusion and not self.project_diffusion and not return_chain:
             # Original Diffusion with jump gaussians
             sample = (
-                extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
-                extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+                    extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
+                    extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
             )
             if self.mask_action:
                 sample[:, :, :self.action_dim] = 0.0
@@ -333,9 +347,9 @@ class GaussianDiffusion(nn.Module):
                 # Mask alphas where diffusion is done
                 diffusion_is_done = t_i > t
                 sqrt_alphas = self.sqrt_alphas[t_i] * torch.ones_like(t)
-                sqrt_alphas[diffusion_is_done] = 1. # Multiplication Identity
+                sqrt_alphas[diffusion_is_done] = 1.  # Multiplication Identity
                 sqrt_one_minus_alphas = self.sqrt_one_minus_alphas[t_i] * torch.ones_like(t)
-                sqrt_one_minus_alphas[diffusion_is_done] = 0. # Addition Identity
+                sqrt_one_minus_alphas[diffusion_is_done] = 0.  # Addition Identity
 
                 # Reshape coefficients for proper broadcast
                 sqrt_alphas = sqrt_alphas.reshape((-1, 1, 1))

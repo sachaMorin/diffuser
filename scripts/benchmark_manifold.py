@@ -24,11 +24,12 @@ class Parser(utils.Parser):
     dataset: str = 'S2-v1'
     config: str = 'config.locomotion'
 
+
 args = Parser().parse_args('plan')
 
 dfs = []
 
-for proj, seed in itertools.product([None, True], [1, 12, 123]):
+for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projection"], [1]):
     args.diffusion_loadpath = f'diffusion/defaults_H12_T20_P{proj}_S{seed}'
 
     # -----------------------------------------------------------------------------#
@@ -55,18 +56,22 @@ for proj, seed in itertools.product([None, True], [1, 12, 123]):
     train_dataset.normalize()
 
     # Validation dataset
+    # Always use the large version for validation
+    dataset = args.dataset
+    for s in ["small", "medium"]:
+        if s in dataset:
+            dataset = dataset.replace(s, "large")
     dataset_config = utils.Config(
         args.loader,
         savepath=(args.savepath, 'dataset_config.pkl'),
-        env=args.dataset,
+        env=dataset,
         horizon=train_dataset.horizon,
         normalizer=args.normalizer,
         preprocess_fns=args.preprocess_fns,
         use_padding=train_dataset.use_padding,
         max_path_length=train_dataset.max_path_length,
-        seed=123,  # Validation seed
+        seed=321,  # Validation seed
     )
-
     val_dataset = dataset_config()
 
     # Make sure dataset and model use the same normalizer
@@ -86,16 +91,40 @@ for proj, seed in itertools.product([None, True], [1, 12, 123]):
                 trajectories, conds = batch
                 trajectories_pred = diffusion(conds).trajectories
 
-                # Make sure trajectories are projected onto the manifold
-                # trajectories_pred = diffusion.project(trajectories_pred)
-
-                # Unormalize trajectories
                 trajectories = diffusion.normalizer.unnormalize(trajectories[:, :, train_dataset.action_dim:],
                                                                 "observations")
                 trajectories_pred = diffusion.normalizer.unnormalize(trajectories_pred[:, :, train_dataset.action_dim:],
                                                                      "observations")
+                # show_diffusion(renderer,
+                #                torch.repeat_interleave(trajectories_pred[0].unsqueeze(0), 12, dim=0).cpu().numpy(),
+                #                savebase='.',
+                #                filename='denoising_b.mp4',
+                #                n_repeat=10,
+                #                fps=5,
+                #                )
+
                 # Make sure trajectories are on the manifold
-                _, trajectories_pred = train_dataset.env.projection(None, trajectories_pred)
+                # t = trajectories_pred[619]
+                # show_diffusion(diffusion_experiment.renderer,
+                #                torch.stack([t for _ in range(10)]).cpu().numpy(),
+                #                savebase='.',
+                #                filename='denoising_pred.mp4',
+                #                n_repeat=10,
+                #                fps=5,
+                #                )
+                # t = trajectories[619]
+                # show_diffusion(diffusion_experiment.renderer,
+                #                torch.stack([t for _ in range(10)]).cpu().numpy(),
+                #                savebase='.',
+                #                filename='denoising.mp4',
+                #                n_repeat=10,
+                #                fps=5,
+                #                )
+
+                if proj == "no_projection":
+                    print("Projecting on Manifold")
+                    _, trajectories_pred = train_dataset.env.projection(None, trajectories_pred)
+
 
                 # Get distances
                 expert_dist = train_dataset.env.seq_geodesic_distance(trajectories)
@@ -110,12 +139,13 @@ for proj, seed in itertools.product([None, True], [1, 12, 123]):
                 result['diffuser'] += diffuser_dist.tolist()
 
         df = pd.DataFrame(result)
-        anomalies_diffuser = df['diffuser'] < df['shortest']
+        anomalies_diffuser = (df['diffuser'] - df['shortest']) < -1e-2
         anomalies_expert = df['expert'] < df['shortest']
         if anomalies_diffuser.any():
-            raise Exception(f"Found {anomalies_diffuser.sum()} trajectories where diffuser < shortest path.")
-        if anomalies_expert.any():
-            raise Exception(f"Found {anomalies_expert.sum()} trajectories where expert < shortest path.")
+            print(df['diffuser'][anomalies_diffuser] - df['shortest'][anomalies_diffuser])
+            warnings.warn(f"Found {anomalies_diffuser.sum()} trajectories where diffuser < shortest path.")
+        # if anomalies_expert.any():
+        #     raise Exception(f"Found {anomalies_expert.sum()} trajectories where expert < shortest path.")
 
         return df
 
@@ -132,16 +162,15 @@ for proj, seed in itertools.product([None, True], [1, 12, 123]):
     dfs.append(df_train)
     dfs.append(df_val)
 
-
 # Normalize and save dataframe
 df = pd.concat(dfs, axis=0)
 
 # Normalize columns
 divide_by = df['shortest'].copy()
 for c in ['expert', 'diffuser', 'shortest']:
-    df[c] = df[c]/divide_by
+    df[c] = df[c] / divide_by
 
     # Some pred
     df[c] = df[c].clip(lower=1.00)
 
-df.to_csv(os.path.join("logs", f"results_{args.dataset}.csv"))
+df.to_csv(os.path.join("..", "diffuser_logs", "results", f"results_{args.dataset}_1_shot.csv"))
