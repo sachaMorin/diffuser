@@ -128,7 +128,27 @@ class SO3(ManifoldEnv):
 
         dist = torch.arccos(cos)
 
-        return dist.sum(dim=1)
+        return dist
+
+    def score(self, R):
+        """Score trajectories of rotations.
+
+        We aim for short, constant velocity trajectories.
+        R is of size [batch_size, T, n_dim].
+
+        Given a start, a goal, T steps and an optimal dist d^* between the start and
+        goal, each step in the trajectory should be of length d^*/T, no more, no less.
+        Note that by design, all trajectories already start and end at the expected coordinates."""
+        batch_size, T, n_dim = R.shape
+        start_goal = R[:, [0, -1], :]
+        dist = self.seq_geodesic_distance(R)
+        optimal_dist = self.seq_geodesic_distance(start_goal)
+        optimal_step_size = optimal_dist/T
+
+        # Return length of trajectories on the manifold
+        # And how well the velocity constraint is satisfied
+        return dist.sum(dim=-1), ((dist - optimal_step_size) ** 2).mean(dim=-1)
+
 
     def interpolate(self, start, goal, times=None):
         if times is None:

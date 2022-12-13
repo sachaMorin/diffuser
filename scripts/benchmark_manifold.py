@@ -48,7 +48,7 @@ for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projecti
     renderer = diffusion_experiment.renderer
 
     dataloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=1000, num_workers=1, shuffle=True, pin_memory=True
+        train_dataset, batch_size=1000, num_workers=1, shuffle=False, pin_memory=True
     )
 
     # Make sure dataset and model use the same normalizer
@@ -79,13 +79,13 @@ for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projecti
     val_dataset.normalize()
 
     val_dataloader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=1000, num_workers=1, shuffle=True, pin_memory=True
+        val_dataset, batch_size=1000, num_workers=1, shuffle=False, pin_memory=True
     )
 
 
     def predict(loader):
         with torch.inference_mode():
-            result = dict(shortest=list(), expert=list(), diffuser=list())
+            result = dict(expert_dist=list(), expert_velocity=list(), diffuser_dist=list(), diffuser_velocity=list())
             for batch in loader:
                 batch = batch_to_device(batch)
                 trajectories, conds = batch
@@ -127,25 +127,19 @@ for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projecti
 
 
                 # Get distances
-                expert_dist = train_dataset.env.seq_geodesic_distance(trajectories)
-                diffuser_dist = train_dataset.env.seq_geodesic_distance(trajectories_pred)
+                expert_dist, expert_velocity = train_dataset.env.score(trajectories)
+                diffuser_dist, diffuser_velocity = train_dataset.env.score(trajectories_pred)
 
-                start_goal = trajectories[:, [0, -1], :]
-
-                shortest_dist = train_dataset.env.seq_geodesic_distance(start_goal)
-
-                result['expert'] += expert_dist.tolist()
-                result['shortest'] += shortest_dist.tolist()
-                result['diffuser'] += diffuser_dist.tolist()
+                result['expert_dist'] += expert_dist.tolist()
+                result['expert_velocity'] += expert_velocity.tolist()
+                result['diffuser_dist'] += diffuser_dist.tolist()
+                result['diffuser_velocity'] += diffuser_velocity.tolist()
 
         df = pd.DataFrame(result)
-        anomalies_diffuser = (df['diffuser'] - df['shortest']) < -1e-2
-        anomalies_expert = df['expert'] < df['shortest']
+        anomalies_diffuser = (df['diffuser_dist'] - df['expert_dist']) < -1e-2
         if anomalies_diffuser.any():
-            print(df['diffuser'][anomalies_diffuser] - df['shortest'][anomalies_diffuser])
-            warnings.warn(f"Found {anomalies_diffuser.sum()} trajectories where diffuser < shortest path.")
-        # if anomalies_expert.any():
-        #     raise Exception(f"Found {anomalies_expert.sum()} trajectories where expert < shortest path.")
+            print(df['diffuser_dist'][anomalies_diffuser] - df['expert_dist'][anomalies_diffuser])
+            warnings.warn(f"Found {anomalies_diffuser.sum()} trajectories where diffuser < expert path.")
 
         return df
 
@@ -166,11 +160,11 @@ for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projecti
 df = pd.concat(dfs, axis=0)
 
 # Normalize columns
-divide_by = df['shortest'].copy()
-for c in ['expert', 'diffuser', 'shortest']:
-    df[c] = df[c] / divide_by
+# divide_by = df['expert'].copy()
+# for c in ['expert', 'diffuser']:
+#     df[c] = df[c] / divide_by
+#
+#     # Some pred
+#     df[c] = df[c].clip(lower=1.00)
 
-    # Some pred
-    df[c] = df[c].clip(lower=1.00)
-
-df.to_csv(os.path.join("..", "diffuser_logs", "results", f"results_{args.dataset}_1_shot.csv"))
+df.to_csv(os.path.join("..", "diffuser_logs", "results", f"results_{args.dataset}.csv"))
