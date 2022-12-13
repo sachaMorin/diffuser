@@ -229,6 +229,25 @@ class ManifoldEnv(gym.Env):
         samples = self.sample(n_samples)
         return torch.from_numpy(samples).to(device)
 
+    def score(self, R):
+        """Score trajectories.
+
+        We aim for short, constant velocity trajectories.
+        R is of size [batch_size, T, n_dim].
+
+        Given a start, a goal, T steps and an optimal dist d^* between the start and
+        goal, each step in the trajectory should be of length d^*/T, no more, no less.
+        Note that by design, all trajectories already start and end at the expected coordinates."""
+        batch_size, T, n_dim = R.shape
+        start_goal = R[:, [0, -1], :]
+        dist = self.seq_geodesic_distance(R)
+        optimal_dist = self.seq_geodesic_distance(start_goal)
+        optimal_step_size = optimal_dist / T
+
+        # Return length of trajectories on the manifold
+        # And how well the velocity constraint is satisfied
+        return dist.sum(dim=-1), ((dist - optimal_step_size) ** 2).mean(dim=-1)
+
 
 class T2(ManifoldEnv):
     metadata = {'render.modes': ['human']}
@@ -323,12 +342,12 @@ class T2(ManifoldEnv):
         x = self.embedding_to_intrinsic(x.reshape((b * t, d)).cpu().numpy()).reshape((b, t, 2))
         from_ = x[:, :-1, :]
         to = x[:, 1:, :]
-        result = torch.zeros(b)
+        result = torch.zeros(b, t - 1)
 
         for i in range(b):
-            for from_i, to_i in zip(from_[i], to[i]):
+            for j, (from_i, to_i) in enumerate(zip(from_[i], to[i])):
                 dist = self.manifold.distance(from_i, to_i)
-                result[i] += dist
+                result[i,  j] += dist
                 # print(dist)
 
         return result
@@ -428,7 +447,7 @@ class S2(ManifoldEnv):
         chordal_dist = torch.linalg.norm(to - from_, dim=-1)
         half_angle = torch.arcsin(chordal_dist / 2)
 
-        return (2 * half_angle).sum(dim=-1)
+        return 2 * half_angle
 
 
 # Define datasets with different sizes
@@ -461,7 +480,9 @@ if __name__ == '__main__':
     env_small = S2small()
     # env = T2()
     dataset = env_small.get_dataset()
-    import pdb; pdb.set_trace()
+    import pdb;
+
+    pdb.set_trace()
     #
     # # Render some planner trajectories
     # for i in range(20):

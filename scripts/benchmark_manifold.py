@@ -29,7 +29,7 @@ args = Parser().parse_args('plan')
 
 dfs = []
 
-for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projection"], [1]):
+for proj, seed in itertools.product(["manifold_diffusion", "start", "no_projection"], [1, 12, 123]):
     args.diffusion_loadpath = f'diffusion/defaults_H12_T20_P{proj}_S{seed}'
 
     # -----------------------------------------------------------------------------#
