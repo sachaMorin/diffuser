@@ -57,6 +57,7 @@ def surface_plot(x, y=None, s=1, fig=None, ax=None, tilt=30, rotation=-80, edgec
     if c is None:
         c = np.arange(x.shape[0])
 
+    x[:, 2] *= 1.15
     ax.scatter(*x.T, cmap=cmap, c=c, s=s)
     set_axes_equal(ax)
     return fig, ax
@@ -78,6 +79,7 @@ def triu_plot(x, coords, s=20, tilt=30, rotation=-80, edgecolor='k'):
 
     # Triangulate parameter space to determine the triangles
     tri = mtri.Triangulation(*coords.T)
+    x[:, 2] *= 1.15
     ax.plot_trisurf(*x.T, color='white', alpha=0.1, triangles=tri.triangles)
     set_axes_equal(ax)
 

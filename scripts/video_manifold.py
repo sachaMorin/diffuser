@@ -63,8 +63,9 @@ policy = policy_config()
 # Visualize the denoising process
 # Torus
 if 'T2' in args.dataset:
-    # cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([0.0, 1.0, 1.0, 0.0])}
-    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: -torch.tensor([0.0, 1.0, 0.0, 1.0])}
+    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([-1.0, 0.0, 1.0, 0.0])}
+    cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: torch.tensor([-1.0, 0.0, 1.0, 0.0])}
+    # cond = {0: torch.tensor([1.0, 0.0, 1.0, 0.0]), -1: -torch.tensor([0.0, 1.0, 0.0, 1.0])}
 elif 'S2' in args.dataset:
     cond = {0: torch.tensor([1.0, 0.0, 0.0]), -1: torch.tensor([0.0, -1.0, 0.0])}
 elif 'SO3' in args.dataset:
