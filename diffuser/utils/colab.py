@@ -15,6 +15,7 @@ except:
 from .serialization import mkdir
 from .arrays import to_torch, to_np
 from .video import save_video
+from PIL import Image
 
 
 def run_diffusion(model, dataset, cond, n_samples=1, device='cuda:0', **diffusion_kwargs):
@@ -52,7 +53,7 @@ def run_diffusion(model, dataset, cond, n_samples=1, device='cuda:0', **diffusio
 
 def show_diffusion(renderer, observations,
                    n_repeat=100, substep=1,
-                   filename='diffusion.mp4', savebase='/content/videos', fps=5):
+                   filename='diffusion.mp4', savebase='/content/videos', fps=5, save_im=True):
     '''
         observations : [ n_diffusion_steps x batch_size x horizon x observation_dim ]
     '''
@@ -74,6 +75,12 @@ def show_diffusion(renderer, observations,
         images,
         images[-1:].repeat(n_repeat, axis=0)
     ], axis=0)
+
+    if save_im:
+        # Save last image
+        img = Image.fromarray(img)
+        img.save(os.path.join(savebase, "final.png"))
+
 
     save_video(savepath, images, fps=fps)
     print(f'Video saved to {savepath}')

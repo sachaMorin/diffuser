@@ -197,9 +197,9 @@ class ManifoldEnv(gym.Env):
         traj = self.expand_traj(traj)
         _, traj = self.projection(None, traj)
         traj = self.embedding_to_3D(traj)
-        surface_plot(traj, fig=fig, ax=ax, cmap="plasma")
-        ax.scatter(*traj[0], c='#0D0887', s=100, linewidths=1, edgecolors='k')
-        ax.scatter(*traj[-1], c='#F0F921', s=100, linewidths=1, edgecolors='k')
+        surface_plot(traj, fig=fig, ax=ax, cmap="rainbow", s=5)
+        ax.scatter(*traj[0], c='#8000ff', s=100, linewidths=0, edgecolors='k')
+        ax.scatter(*traj[-1], c='#ff0000', s=100, linewidths=0, edgecolors='k')
 
         # Remove border
         ax.margins(0)

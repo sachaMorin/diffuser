@@ -23,7 +23,7 @@ class Parser(utils.Parser):
 
 args = Parser().parse_args('plan')
 
-args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pno_projection_S1'
+args.diffusion_loadpath = 'diffusion/defaults_H12_T20_Pmanifold_diffusion_S1'
 
 
 #-----------------------------------------------------------------------------#
@@ -106,7 +106,7 @@ _, chains_torch[-1] = dataset.env.projection(None, chains_torch[-1].unsqueeze(0)
 chains_torch[-1, 0] = cond[0]
 chains_torch[-1, -1] = cond[-1]
 
-diffuser_dist = dataset.env.seq_geodesic_distance(chains_torch[-1].unsqueeze(0))
+diffuser_dist, _ = dataset.env.score(chains_torch[-1].unsqueeze(0))
 
 chains = chains_torch.numpy()
 
@@ -122,7 +122,7 @@ show_diffusion(renderer,
 # Visualize the diffusion process
 traj = dataset.env.interpolate(cond_copy[0].cpu().numpy(), cond_copy[-1].cpu().numpy())
 traj = np.expand_dims(traj, 0)
-expert_dist = dataset.env.seq_geodesic_distance(torch.from_numpy(traj))
+expert_dist, _ = dataset.env.score(torch.from_numpy(traj))
 
 # Add dummy actions
 dummy_actions = np.zeros((traj.shape[0], traj.shape[1], diffusion.action_dim))
@@ -148,6 +148,7 @@ show_diffusion(renderer,
                filename='diffusion.mp4',
                n_repeat=10,
                fps=5,
+               save_im=False,
                )
 
 print(f"Diffuser dist : {diffuser_dist.item():.4f}")

@@ -36,7 +36,7 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-def surface_plot(x, y=None, s=1, fig=None, ax=None, tilt=30, rotation=-80, edgecolor='k', c=None, cmap="plasma"):
+def surface_plot(x, y=None, s=1, fig=None, ax=None, tilt=30, rotation=-80, edgecolor='k', c=None, cmap="rainbow"):
     """3D plot of the data
     Args:
         x(ndarray): Points.
