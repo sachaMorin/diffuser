@@ -278,8 +278,8 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import geotorch
 
-    env = SO3GS(seed=42, n_samples_planner=5000)
-    dataset = env.get_dataset(100)
+    env = SO3small(seed=42)
+    dataset = env.get_dataset()
 
     # Render some planner trajectories
     # for i in range(10):
